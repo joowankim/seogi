@@ -12,9 +12,9 @@ if [[ -f "$CLAUDE_SETTINGS" ]]; then
 
   UPDATED_SETTINGS=$(jq --arg seogi_dir "$SEOGI_DIR" '
     if .hooks then
-      .hooks.PreToolUse = [.hooks.PreToolUse[]? | select(.hooks[]? | contains($seogi_dir) | not)] |
-      .hooks.PostToolUse = [.hooks.PostToolUse[]? | select(.hooks[]? | contains($seogi_dir) | not)] |
-      .hooks.Notification = [.hooks.Notification[]? | select(.hooks[]? | contains($seogi_dir) | not)] |
+      .hooks.PreToolUse = [.hooks.PreToolUse[]? | select(.hooks[]? | (type == "string" and contains($seogi_dir)) | not)] |
+      .hooks.PostToolUse = [.hooks.PostToolUse[]? | select(.hooks[]? | (type == "string" and contains($seogi_dir)) | not)] |
+      .hooks.Notification = [.hooks.Notification[]? | select(.hooks[]? | (type == "string" and contains($seogi_dir)) | not)] |
       if .hooks.PreToolUse == [] then del(.hooks.PreToolUse) else . end |
       if .hooks.PostToolUse == [] then del(.hooks.PostToolUse) else . end |
       if .hooks.Notification == [] then del(.hooks.Notification) else . end |
