@@ -10,11 +10,9 @@ INPUT=$(cat)
 # 필드 추출
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // "unknown"')
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // null')
-TOOL_INPUT=$(echo "$INPUT" | jq -r '.tool_input // null')
-TOOL_OUTPUT=$(echo "$INPUT" | jq -r '.tool_output // null')
+TOOL_INPUT=$(echo "$INPUT" | jq '.tool_input // null')
 PROJECT_PATH=$(echo "$INPUT" | jq -r '.cwd // "unknown"')
 ROLE=$(echo "$INPUT" | jq -r '.role // "assistant"')
-CONTENT=$(echo "$INPUT" | jq -r '.content // .tool_output // ""')
 
 # 프로젝트 이름 추출
 PROJECT_NAME=$(get_project_name "$PROJECT_PATH")
@@ -39,27 +37,26 @@ if [[ "$TOOL_NAME" != "null" && -n "$TOOL_NAME" ]]; then
   TOOL_JSON=$(jq -n \
     --arg name "$TOOL_NAME" \
     --argjson duration "$DURATION_MS" \
-    '{name: $name, duration_ms: $duration}')
+    --argjson input "$TOOL_INPUT" \
+    '{name: $name, duration_ms: $duration, input: $input}')
 else
   TOOL_JSON="null"
 fi
 
-# 로그 엔트리 생성
-LOG_ENTRY=$(jq -n \
+# 로그 엔트리 생성 (compact 한 줄 출력)
+LOG_ENTRY=$(jq -cn \
   --arg timestamp "$TIMESTAMP" \
   --arg sessionId "$SESSION_ID" \
   --arg project "$PROJECT_NAME" \
   --arg projectPath "$PROJECT_PATH" \
   --argjson tool "$TOOL_JSON" \
   --arg role "$ROLE" \
-  --arg content "$CONTENT" \
   '{
     timestamp: $timestamp,
     sessionId: $sessionId,
     project: $project,
     projectPath: $projectPath,
     role: $role,
-    content: $content,
     tool: $tool
   }')
 

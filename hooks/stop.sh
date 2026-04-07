@@ -9,24 +9,21 @@ INPUT=$(cat)
 
 # 필드 추출
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // "unknown"')
-NOTIFICATION_TYPE=$(echo "$INPUT" | jq -r '.type // "unknown"')
-MESSAGE=$(echo "$INPUT" | jq -r '.message // ""')
 PROJECT_PATH=$(echo "$INPUT" | jq -r '.cwd // "unknown"')
+STOP_REASON=$(echo "$INPUT" | jq -r '.stop_reason // "unknown"')
 
 # 프로젝트 이름 추출
 PROJECT_NAME=$(get_project_name "$PROJECT_PATH")
 
-# 타임스탬프 생성
+# 세션 종료 로그 기록
 TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
-
-# 로그 엔트리 생성
-LOG_ENTRY=$(jq -cn \
+LOG_ENTRY=$(jq -n \
   --arg timestamp "$TIMESTAMP" \
   --arg sessionId "$SESSION_ID" \
   --arg project "$PROJECT_NAME" \
   --arg projectPath "$PROJECT_PATH" \
   --arg role "system" \
-  --arg content "[$NOTIFICATION_TYPE] $MESSAGE" \
+  --arg content "[stop] $STOP_REASON" \
   '{
     timestamp: $timestamp,
     sessionId: $sessionId,
@@ -37,5 +34,10 @@ LOG_ENTRY=$(jq -cn \
     tool: null
   }')
 
-# 로그 작성
 write_log_entry "$PROJECT_NAME" "$LOG_ENTRY"
+
+# 세션 요약 분석기를 백그라운드로 실행 (세션 종료 지연 방지)
+ANALYZER="$SCRIPT_DIR/../analyzers/session-summary.sh"
+if [[ -x "$ANALYZER" ]]; then
+  "$ANALYZER" "$PROJECT_NAME" "$SESSION_ID" &
+fi

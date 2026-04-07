@@ -15,9 +15,11 @@ if [[ -f "$CLAUDE_SETTINGS" ]]; then
       .hooks.PreToolUse = [.hooks.PreToolUse[]? | select(.hooks[]? | (type == "string" and contains($seogi_dir)) | not)] |
       .hooks.PostToolUse = [.hooks.PostToolUse[]? | select(.hooks[]? | (type == "string" and contains($seogi_dir)) | not)] |
       .hooks.Notification = [.hooks.Notification[]? | select(.hooks[]? | (type == "string" and contains($seogi_dir)) | not)] |
+      .hooks.Stop = [.hooks.Stop[]? | select(.hooks[]? | (type == "string" and contains($seogi_dir)) | not)] |
       if .hooks.PreToolUse == [] then del(.hooks.PreToolUse) else . end |
       if .hooks.PostToolUse == [] then del(.hooks.PostToolUse) else . end |
       if .hooks.Notification == [] then del(.hooks.Notification) else . end |
+      if .hooks.Stop == [] then del(.hooks.Stop) else . end |
       if .hooks == {} then del(.hooks) else . end
     else . end
   ' "$CLAUDE_SETTINGS")

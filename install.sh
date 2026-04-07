@@ -9,13 +9,14 @@ CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 
 # 1. seogi 디렉토리 생성 및 파일 복사
 echo "Creating $SEOGI_DIR..."
-mkdir -p "$SEOGI_DIR/hooks" "$SEOGI_DIR/lib"
+mkdir -p "$SEOGI_DIR/hooks" "$SEOGI_DIR/lib" "$SEOGI_DIR/analyzers"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cp "$SCRIPT_DIR/config.json" "$SEOGI_DIR/"
 cp "$SCRIPT_DIR/hooks/"*.sh "$SEOGI_DIR/hooks/"
 cp "$SCRIPT_DIR/lib/"*.sh "$SEOGI_DIR/lib/"
-chmod +x "$SEOGI_DIR/hooks/"*.sh "$SEOGI_DIR/lib/"*.sh
+cp "$SCRIPT_DIR/analyzers/"*.sh "$SEOGI_DIR/analyzers/"
+chmod +x "$SEOGI_DIR/hooks/"*.sh "$SEOGI_DIR/lib/"*.sh "$SEOGI_DIR/analyzers/"*.sh
 
 # 2. 기본 로그 디렉토리 생성
 echo "Creating log directory at $SEOGI_LOGS_DIR..."
@@ -43,6 +44,9 @@ if [[ -f "$CLAUDE_SETTINGS" ]]; then
     .hooks.Notification = (.hooks.Notification // []) + [{
       "matcher": "*",
       "hooks": [($seogi_dir + "/hooks/notification.sh")]
+    }] |
+    .hooks.Stop = (.hooks.Stop // []) + [{
+      "hooks": [($seogi_dir + "/hooks/stop.sh")]
     }]
   ' "$CLAUDE_SETTINGS")
 
@@ -62,6 +66,9 @@ else
       Notification: [{
         matcher: "*",
         hooks: [($seogi_dir + "/hooks/notification.sh")]
+      }],
+      Stop: [{
+        hooks: [($seogi_dir + "/hooks/stop.sh")]
       }]
     }
   }' > "$CLAUDE_SETTINGS"
