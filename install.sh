@@ -35,22 +35,22 @@ if [[ -f "$CLAUDE_SETTINGS" ]]; then
     .hooks = (.hooks // {}) |
     .hooks.PreToolUse = (.hooks.PreToolUse // []) + [{
       "matcher": "*",
-      "hooks": [($seogi_dir + "/hooks/pre-tool.sh")]
+      "hooks": [{"type": "command", "command": ($seogi_dir + "/hooks/pre-tool.sh")}]
     }] |
     .hooks.PostToolUse = (.hooks.PostToolUse // []) + [{
       "matcher": "*",
-      "hooks": [($seogi_dir + "/hooks/post-tool.sh")]
+      "hooks": [{"type": "command", "command": ($seogi_dir + "/hooks/post-tool.sh")}]
     }] |
     .hooks.Notification = (.hooks.Notification // []) + [{
       "matcher": "*",
-      "hooks": [($seogi_dir + "/hooks/notification.sh")]
+      "hooks": [{"type": "command", "command": ($seogi_dir + "/hooks/notification.sh")}]
     }] |
     .hooks.Stop = (.hooks.Stop // []) + [{
-      "hooks": [($seogi_dir + "/hooks/stop.sh")]
+      "hooks": [{"type": "command", "command": ($seogi_dir + "/hooks/stop.sh")}]
     }] |
     .hooks.PostToolUseFailure = (.hooks.PostToolUseFailure // []) + [{
       "matcher": "*",
-      "hooks": [($seogi_dir + "/hooks/post-tool-failure.sh")]
+      "hooks": [{"type": "command", "command": ($seogi_dir + "/hooks/post-tool-failure.sh")}]
     }]
   ' "$CLAUDE_SETTINGS")
 
@@ -61,22 +61,22 @@ else
     hooks: {
       PreToolUse: [{
         matcher: "*",
-        hooks: [($seogi_dir + "/hooks/pre-tool.sh")]
+        hooks: [{"type": "command", "command": ($seogi_dir + "/hooks/pre-tool.sh")}]
       }],
       PostToolUse: [{
         matcher: "*",
-        hooks: [($seogi_dir + "/hooks/post-tool.sh")]
+        hooks: [{"type": "command", "command": ($seogi_dir + "/hooks/post-tool.sh")}]
       }],
       Notification: [{
         matcher: "*",
-        hooks: [($seogi_dir + "/hooks/notification.sh")]
+        hooks: [{"type": "command", "command": ($seogi_dir + "/hooks/notification.sh")}]
       }],
       Stop: [{
-        hooks: [($seogi_dir + "/hooks/stop.sh")]
+        hooks: [{"type": "command", "command": ($seogi_dir + "/hooks/stop.sh")}]
       }],
       PostToolUseFailure: [{
         matcher: "*",
-        hooks: [($seogi_dir + "/hooks/post-tool-failure.sh")]
+        hooks: [{"type": "command", "command": ($seogi_dir + "/hooks/post-tool-failure.sh")}]
       }]
     }
   }' > "$CLAUDE_SETTINGS"
