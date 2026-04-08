@@ -46,7 +46,6 @@ session-summary의 프록시 지표를 Guides/Sensors 분류로 재설계한다.
 
 **비효율 감지 (삽질 징후)**
 - `doom_loop_count` — 기존 유지
-- `retry_count` — 동일 도구+동일 입력 연속 재시도 횟수
 - `bash_error_rate` — Bash 호출 중 실패(exit code != 0) 비율
 
 **산출물**
