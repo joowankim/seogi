@@ -3,7 +3,7 @@ set -euo pipefail
 
 # 세션 요약 분석기
 # 사용법: session-summary.sh <project_name> <session_id>
-# 현재 세션의 raw JSONL 로그에서 프록시 지표 7개를 계산하여 metrics JSONL에 저장
+# 현재 세션의 raw JSONL 로그에서 프록시 지표 10개를 계산하여 metrics JSONL에 저장
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../lib/logger.sh"
@@ -99,6 +99,27 @@ METRICS=$(echo "$SESSION_LOGS" | jq -s --arg sid "$SESSION_ID" --arg proj "$PROJ
     ] | unique | [.[] | select(. != "unknown")]
   ) as $edit_files |
 
+  # 8. lint_invoked: Bash에서 lint/eslint/prettier/ruff/biome 호출 여부
+  (
+    [$tool_calls[] | select(.tool.name == "Bash") | .tool.input.command // ""] |
+    any(test("\\b(lint|eslint|prettier|ruff|biome)\\b"; "i"))
+  ) as $lint_invoked |
+
+  # 9. typecheck_invoked: Bash에서 tsc --noEmit/mypy/pyright 호출 여부
+  (
+    [$tool_calls[] | select(.tool.name == "Bash") | .tool.input.command // ""] |
+    any(test("\\b(tsc\\s+--noEmit|mypy|pyright)\\b"; "i"))
+  ) as $typecheck_invoked |
+
+  # 10. bash_error_rate: Bash 실패 비율
+  (
+    [$sorted[] | select(.tool != null and .tool.name == "Bash")] as $all_bash |
+    [$all_bash[] | select(.tool.failed == true)] as $failed_bash |
+    if ($all_bash | length) > 0 then
+      (($failed_bash | length) / ($all_bash | length) * 100 | round / 100)
+    else 0 end
+  ) as $bash_error_rate |
+
   # 결과 조립
   {
     timestamp: (now | strftime("%Y-%m-%dT%H:%M:%S.000Z")),
@@ -111,7 +132,10 @@ METRICS=$(echo "$SESSION_LOGS" | jq -s --arg sid "$SESSION_ID" --arg proj "$PROJ
       build_invoked: $build_invoked,
       tool_call_count: $tool_call_count,
       session_duration_ms: $session_duration_ms,
-      edit_files: $edit_files
+      edit_files: $edit_files,
+      lint_invoked: $lint_invoked,
+      typecheck_invoked: $typecheck_invoked,
+      bash_error_rate: $bash_error_rate
     }
   }
 ')

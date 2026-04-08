@@ -47,6 +47,10 @@ if [[ -f "$CLAUDE_SETTINGS" ]]; then
     }] |
     .hooks.Stop = (.hooks.Stop // []) + [{
       "hooks": [($seogi_dir + "/hooks/stop.sh")]
+    }] |
+    .hooks.PostToolUseFailure = (.hooks.PostToolUseFailure // []) + [{
+      "matcher": "*",
+      "hooks": [($seogi_dir + "/hooks/post-tool-failure.sh")]
     }]
   ' "$CLAUDE_SETTINGS")
 
@@ -69,6 +73,10 @@ else
       }],
       Stop: [{
         hooks: [($seogi_dir + "/hooks/stop.sh")]
+      }],
+      PostToolUseFailure: [{
+        matcher: "*",
+        hooks: [($seogi_dir + "/hooks/post-tool-failure.sh")]
       }]
     }
   }' > "$CLAUDE_SETTINGS"

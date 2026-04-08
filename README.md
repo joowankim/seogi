@@ -1,20 +1,42 @@
 # Seogi (서기)
 
-Claude Code에서 LLM과의 대화를 실시간으로 로깅하는 Hook 플러그인.
+하니스 엔지니어링을 위한 계측 도구 프레임워크. Claude Code 세션의 도구 사용 패턴을 자동으로 수집하고 분석한다.
 
 ## 기능
 
-- 실시간 대화 로깅 (JSONL 형식)
+- 실시간 도구 사용 로깅 (JSONL 형식)
+- 도구 실패 로깅 (PostToolUseFailure)
+- 세션 종료 시 프록시 지표 10개 자동 산출
 - 프로젝트별 로그 파일 분리
 - 자동 파일 롤오버 (기본 10MB)
-- 도구 사용 시간 측정
 
 ## 설치
+
+### 사전 요구사항
+
+- `jq` — macOS: `brew install jq` / Ubuntu: `apt install jq`
+
+### 설치
 
 ```bash
 git clone git@github.com:joowankim/seogi.git
 cd seogi
 ./install.sh
+```
+
+### 설치 확인
+
+```bash
+# 1. 파일 배포 확인
+ls ~/.seogi/hooks/
+# pre-tool.sh  post-tool.sh  post-tool-failure.sh  notification.sh  stop.sh
+
+# 2. 훅 등록 확인
+jq '.hooks | keys' ~/.claude/settings.json
+# ["Notification", "PostToolUse", "PostToolUseFailure", "PreToolUse", "Stop"]
+
+# 3. 로그 디렉토리 확인
+ls ~/seogi-logs/
 ```
 
 ## 설정
@@ -74,13 +96,6 @@ cd seogi
 ```bash
 rm -rf ~/seogi-logs
 ```
-
-## 의존성
-
-- `jq` - JSON 처리
-
-macOS: `brew install jq`
-Ubuntu: `apt install jq`
 
 ## 라이선스
 
