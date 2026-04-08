@@ -94,7 +94,23 @@ session_duration_ms     180k   165k    90k    120k   220k
 
 ---
 
-## Phase 2: 하니스 변경 이력 (1주 후)
+## Phase 2: 분석기 전환 + changelog CLI (기준선 데이터 확보 후)
+
+기준선 데이터가 1~2주 쌓인 후 시작한다.
+
+### 범위
+
+1. 분석기(session-summary)와 CLI를 컴파일 언어로 전환
+2. `seogi report` — 기간/프로젝트별 집계 리포트
+3. `seogi changelog add` — 하니스 변경 시점 기록
+
+### 언어 선택 — Phase 2 시작 시 최종 결정
+
+Python/Typer 안에서 Rust(clap) 등 컴파일 언어로 방향 전환을 검토 중.
+- Python: 사용자 로컬에 Python + venv + pip 의존성 설치 필요 → 마찰
+- Rust: 바이너리 하나만 배포, 런타임 의존성 없음 → 사용자 환경 구성 불필요
+- 고려: 빌드 타겟별 바이너리 필요 (macOS arm64/x86_64, Linux), GitHub Actions 자동화
+- Phase 2 시작 시 데이터와 요구사항을 보고 최종 결정
 
 ### 2-D. Changelog
 
@@ -114,7 +130,10 @@ $ seogi changelog add "CLAUDE.md에 Edit 전 Read 강제 규칙 추가"
 
 ---
 
-## Phase 3: 비교 도구 (2주 후)
+## Phase 3: 비교 도구 (Phase 2 완료 + 데이터 확보 후)
+
+범위와 경계는 Phase 2 완료 시점에 다시 논의한다.
+비교 외에 추가 기능이나 UI가 기획될 수 있음.
 
 ### 3-E. 통계적 회귀 판정
 
@@ -171,11 +190,11 @@ Phase 1에서 PostToolUseFailure 훅(`post-tool-failure.sh`)을 추가한다.
 ε=0.1, k=3 기본값으로 시작한다.
 기준선 2주 후 실제 σ를 확인하고, 오탐이 많으면 파라미터를 조정한다.
 
-### 논의 4: `seogi` CLI의 형태 — 결정됨
+### 논의 4: `seogi` CLI의 형태 — 재논의 필요
 
-Python/Typer로 CLI를 구현하고 pytest로 안정성을 확보한다.
-훅은 bash로 유지 (지연 민감), 분석기와 CLI만 Python으로 전환.
-Phase 1의 1-C에서 프로젝트 구조 셋업과 함께 진행한다.
+Python/Typer에서 Rust(clap) 등 컴파일 언어로 방향 전환 검토 중.
+사용자 환경에 런타임 의존성을 요구하지 않기 위함.
+Phase 2 시작 시 최종 결정한다.
 
 ### 논의 5: 프록시 지표의 검증 — Phase 3 이후로 보류
 
