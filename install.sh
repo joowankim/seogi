@@ -9,14 +9,24 @@ CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 
 # 1. seogi 디렉토리 생성 및 파일 복사
 echo "Creating $SEOGI_DIR..."
-mkdir -p "$SEOGI_DIR/hooks" "$SEOGI_DIR/lib" "$SEOGI_DIR/analyzers"
+mkdir -p "$SEOGI_DIR/hooks" "$SEOGI_DIR/lib" "$SEOGI_DIR/bin"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cp "$SCRIPT_DIR/config.json" "$SEOGI_DIR/"
 cp "$SCRIPT_DIR/hooks/"*.sh "$SEOGI_DIR/hooks/"
 cp "$SCRIPT_DIR/lib/"*.sh "$SEOGI_DIR/lib/"
-cp "$SCRIPT_DIR/analyzers/"*.sh "$SEOGI_DIR/analyzers/"
-chmod +x "$SEOGI_DIR/hooks/"*.sh "$SEOGI_DIR/lib/"*.sh "$SEOGI_DIR/analyzers/"*.sh
+chmod +x "$SEOGI_DIR/hooks/"*.sh "$SEOGI_DIR/lib/"*.sh
+
+# Rust CLI 바이너리 복사
+SEOGI_BIN="$SCRIPT_DIR/cli/target/release/seogi"
+if [[ -f "$SEOGI_BIN" ]]; then
+  cp "$SEOGI_BIN" "$SEOGI_DIR/bin/seogi"
+  chmod +x "$SEOGI_DIR/bin/seogi"
+  echo "CLI binary installed."
+else
+  echo "Warning: CLI binary not found at $SEOGI_BIN"
+  echo "Run 'cargo build --release' in cli/ directory first."
+fi
 
 # 2. 기본 로그 디렉토리 생성
 echo "Creating log directory at $SEOGI_LOGS_DIR..."
