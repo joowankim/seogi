@@ -37,7 +37,6 @@ LOG_ENTRY=$(jq -n \
 write_log_entry "$PROJECT_NAME" "$LOG_ENTRY"
 
 # 세션 요약 분석기를 백그라운드로 실행 (세션 종료 지연 방지)
-SEOGI_BIN="$SCRIPT_DIR/../bin/seogi"
-if [[ -x "$SEOGI_BIN" ]]; then
-  "$SEOGI_BIN" analyze "$PROJECT_NAME" "$SESSION_ID" &
+if command -v seogi &>/dev/null; then
+  seogi analyze "$PROJECT_NAME" "$SESSION_ID" &
 fi
