@@ -3,3 +3,6 @@
 
 # Serena
 .serena/
+
+# Rust build artifacts
+cli/target/
