@@ -55,6 +55,7 @@ infrastructure 계층 (SQLite 리포지토리)
 CREATE TABLE projects (
     id          TEXT PRIMARY KEY,
     name        TEXT NOT NULL,
+    prefix      TEXT NOT NULL UNIQUE,  -- "SEO", "LOC" 등 (태스크 id 접두사)
     goal        TEXT NOT NULL,
     created_at  INTEGER NOT NULL,
     updated_at  INTEGER NOT NULL
@@ -74,9 +75,10 @@ CREATE TABLE statuses (
 );
 
 CREATE TABLE tasks (
-    id          TEXT PRIMARY KEY,
+    id          TEXT PRIMARY KEY,    -- "{prefix}-{sequence}" 형식 (예: SEO-1, LOC-23)
     title       TEXT NOT NULL,
     description TEXT NOT NULL,
+    label       TEXT NOT NULL,       -- feature, bug, refactor, chore, docs
     status_id   TEXT NOT NULL REFERENCES statuses(id),
     project_id  TEXT NOT NULL REFERENCES projects(id),
     created_at  INTEGER NOT NULL,
@@ -146,7 +148,7 @@ CREATE TABLE session_metrics (
 ### 설계 원칙
 
 - DEFAULT 값은 DB가 아닌 애플리케이션 레이어에서 처리
-- id는 UUID v4 hex 형식
+- id는 UUID v4 hex 형식 (단, 태스크 id는 `{prefix}-{sequence}` 형식)
 - 모든 timestamp는 밀리초 Unix timestamp INTEGER
 - `task_events.session_id`는 NOT NULL — CLI에서 생성 시 `"cli"` 값 사용
 - `task_events.from_status`는 nullable — 최초 생성 시 이전 상태 없음
@@ -218,16 +220,16 @@ CREATE TABLE session_metrics (
 ### 프로젝트
 
 ```
-seogi project create --name "..." --goal "..."
+seogi project create --name "..." --prefix "SEO" --goal "..."
 seogi project list
 ```
 
 ### 태스크
 
 ```
-seogi task create --project <id> --title "..." --description "..."
-seogi task list [--project <id>] [--status <status>]
-seogi task update <task_id> [--title "..."] [--description "..."]
+seogi task create --project <id> --title "..." --description "..." --label feature
+seogi task list [--project <id>] [--status <status>] [--label <label>]
+seogi task update <task_id> [--title "..."] [--description "..."] [--label <label>]
 seogi task move <task_id> <status>
 seogi task start <task_id>    # 단축: move <id> in_progress
 seogi task done <task_id>     # 단축: move <id> done
