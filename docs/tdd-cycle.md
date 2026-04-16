@@ -141,23 +141,23 @@ fn post_tool_hook_saves_tool_use_to_db() {
 
 ### Inside-out 파트 (핵심 도메인)
 
-순수한 부분부터 시작. mock 없이 실제 객체로 단위 테스트.
+순수한 부분부터 시작. mock 없이 실제 값으로 단위 테스트.
 
 **순서:**
 1. Value Object (`Prefix`, `TaskId` 등)
 2. Entity (`ToolUse`, `SessionMetrics` 등)
-3. Domain Service (`MetricsCalculator` 등)
+3. 순수 도메인 함수 (`metrics::calculate` 등)
 
 **예시:**
 ```rust
-// domain/metrics_calculator.rs
+// domain/metrics.rs
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn calculate_empty_session_returns_zero_metrics() {
-        let metrics = MetricsCalculator::calculate(&[]);
+        let metrics = metrics::calculate(&[]);
         assert_eq!(metrics.tool_call_count, 0);
     }
 }
@@ -165,27 +165,31 @@ mod tests {
 
 ### Outside-in 파트 (경계)
 
-Application Handler는 Repository가 필요하므로, **실제 인메모리 SQLite Repository**를 주입한다 (Classicist).
+Workflow 함수는 실제 I/O를 호출하므로, **실제 인메모리 SQLite 연결**을 사용한다 (Classicist).
 
 **예시:**
 ```rust
-// application/log_tool_handler.rs
+// workflow/analyze.rs
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn handle_valid_tool_use_saves_to_repository() {
+    fn run_saves_metrics_to_db() {
         // Classicist: 실제 인메모리 SQLite 사용
-        let conn = Connection::open_in_memory().unwrap();
-        apply_schema(&conn);
-        let repo = SqliteLogRepository::new(&conn);
-        let handler = LogToolHandler::new(repo);
+        let mut conn = Connection::open_in_memory().unwrap();
+        adapter::db::apply_schema(&mut conn);
 
-        let result = handler.handle(LogTool { ... });
+        // 실제 adapter 함수로 데이터 준비
+        log_repo::save_tool_use(&mut conn, &sample_tool_use()).unwrap();
+
+        // workflow 실행
+        let result = workflow::analyze::run(&mut conn, "session-1");
 
         assert!(result.is_ok());
         // 실제 DB 상태 검증
+        let saved = metrics_repo::find_latest(&conn, "session-1").unwrap();
+        assert_eq!(saved, result.unwrap());
     }
 }
 ```

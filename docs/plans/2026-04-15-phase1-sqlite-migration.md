@@ -43,30 +43,29 @@ cli/
 ├── src/
 │   ├── main.rs                        # 진입점 (clap 파싱)
 │   ├── lib.rs                         # 모듈 선언
-│   ├── domain/                        # 도메인 엔티티 + 비즈니스 로직
+│   ├── domain/                        # 순수 데이터 + 순수 함수
 │   │   ├── mod.rs
-│   │   ├── log.rs                     # ToolUse, ToolFailure, SystemEvent 엔티티
-│   │   ├── metrics.rs                 # SessionMetrics 엔티티
-│   │   ├── repository.rs              # Repository trait 정의
-│   │   ├── metrics_calculator.rs      # Domain Service (지표 계산)
-│   │   └── error.rs                   # DomainError (thiserror)
-│   ├── application/                   # 유스케이스 오케스트레이션
-│   │   ├── mod.rs
+│   │   ├── log.rs                     # ToolUse, ToolFailure, SystemEvent 타입
+│   │   ├── metrics.rs                 # SessionMetrics 타입 + calculate 함수
 │   │   ├── command.rs                 # Command DTO
 │   │   ├── query.rs                   # Query DTO
-│   │   ├── log_tool_handler.rs        # LogToolHandler
-│   │   ├── log_failure_handler.rs
-│   │   ├── log_system_handler.rs
-│   │   ├── analyze_handler.rs         # AnalyzeHandler
-│   │   ├── report_handler.rs          # ReportHandler
-│   │   ├── changelog_handler.rs       # ChangelogHandler
-│   │   └── migrate_handler.rs         # MigrateHandler
-│   ├── adapter/                       # Infrastructure (SQLite 리포지토리)
+│   │   └── error.rs                   # DomainError (thiserror)
+│   ├── adapter/                       # I/O 함수 (DB 액세스)
 │   │   ├── mod.rs
-│   │   ├── db.rs                      # SQLite 연결 관리, 스키마 초기화
-│   │   ├── log_repository.rs          # SqliteLogRepository
-│   │   ├── metrics_repository.rs      # SqliteMetricsRepository
-│   │   └── mapper.rs                  # Entity ↔ Row 변환
+│   │   ├── db.rs                      # Connection 관리, 스키마 초기화
+│   │   ├── log_repo.rs                # 로그 저장/조회 함수
+│   │   ├── metrics_repo.rs            # 메트릭 저장/조회 함수
+│   │   ├── changelog_repo.rs
+│   │   └── mapper.rs                  # 도메인 타입 ↔ Row 변환
+│   ├── workflow/                      # 샌드위치 조립 함수
+│   │   ├── mod.rs
+│   │   ├── log_tool.rs                # 훅에서 호출되는 로깅 workflow
+│   │   ├── log_failure.rs
+│   │   ├── log_system.rs
+│   │   ├── analyze.rs                 # load → calculate → save
+│   │   ├── report.rs
+│   │   ├── migrate.rs
+│   │   └── changelog.rs
 │   └── entrypoint/                    # 외부 인터페이스
 │       ├── mod.rs
 │       ├── cli/                       # CLI 명령어
@@ -82,7 +81,7 @@ cli/
 │           ├── post_tool_failure.rs
 │           ├── notification.rs
 │           └── stop.rs
-└── tests/                             # 통합 테스트
+└── tests/                             # 통합 테스트 (E2E)
     ├── migrate_test.rs
     ├── hook_test.rs
     ├── analyze_test.rs
@@ -90,18 +89,19 @@ cli/
 ```
 
 **적용한 컨벤션** (`docs/conventions.md`):
-- 계층 먼저, 모듈은 계층 안에 (layered DDD)
-- domain 레이어는 인프라 의존성 없음 (serde/thiserror/chrono/uuid 허용)
-- Repository trait은 domain, 구현은 adapter
-- Domain Service는 `~Service` 금지 → `MetricsCalculator` 같은 구체적 이름
-- Application Layer의 `~Handler`는 예외 (유스케이스 오케스트레이션 목적)
+- 함수형 3계층 (`entrypoint → workflow → domain + adapter`)
+- Repository trait/Handler struct 없음, 모듈 + 함수로 조직
+- domain은 순수 데이터 타입 + 순수 함수 (I/O 없음)
+- adapter는 I/O 함수들 (DB 액세스)
+- workflow는 Impureim Sandwich: 불순 I/O → 순수 계산 → 불순 I/O
+- domain 허용 외부 크레이트: serde, thiserror, chrono, uuid
 ```
 
 ---
 
 ## 구현 순서 (Feature-first)
 
-계층별이 아닌 **기능별 증분 구현**. 각 기능은 도메인→어댑터→애플리케이션→엔트리포인트의 수직 슬라이스로 완성되며, 완성 후 다음 기능으로 넘어간다.
+계층별이 아닌 **기능별 증분 구현**. 각 기능은 domain → adapter → workflow → entrypoint의 수직 슬라이스로 완성되며, 완성 후 다음 기능으로 넘어간다.
 
 각 Feature는 [TDD 사이클](../tdd-cycle.md)을 따른다.
 
@@ -121,7 +121,7 @@ cli/
 - 재실행 시 기존 스키마 유지
 - 인메모리 DB (`:memory:`)로 테스트 격리
 
-**산출물:** `seogi init` 또는 첫 실행 시 DB 파일 생성 동작
+**산출물:** 첫 실행 시 DB 파일 자동 생성
 
 ---
 
@@ -130,18 +130,17 @@ cli/
 **목표:** Claude Code가 도구를 성공적으로 호출했을 때 SQLite에 기록.
 
 **수직 슬라이스:**
-- `domain/log.rs`: `ToolUse` 엔티티
-- `domain/repository.rs`: `LogRepository` trait (`save_tool_use`, `find_by_session`)
-- `adapter/log_repository.rs`: `SqliteLogRepository::save_tool_use`
+- `domain/log.rs`: `ToolUse` 타입 정의
+- `adapter/log_repo.rs`: `save_tool_use` 함수
 - `adapter/mapper.rs`: `ToolUse` ↔ Row 변환
-- `application/log_tool_handler.rs`: `LogToolHandler::handle`
-- `entrypoint/hooks/post_tool.rs`: stdin 파싱 → 핸들러 호출
+- `workflow/log_tool.rs`: 샌드위치 조립 (파싱 → 저장)
+- `entrypoint/hooks/post_tool.rs`: stdin 파싱 → workflow 호출
 
 **테스트:**
-- ToolUse 엔티티 검증 (Value Object 생성 규칙)
-- Repository 단위 테스트 (인메모리 DB)
-- Handler 단위 테스트 (mock Repository)
-- 통합 테스트: stdin → DB 저장 확인
+- `ToolUse::new` Value Object 검증 단위 테스트
+- `adapter::log_repo::save_tool_use` 통합 테스트 (인메모리 SQLite)
+- `workflow::log_tool::run` 통합 테스트 (실제 adapter + domain)
+- E2E: 바이너리 stdin → DB 저장 확인
 
 ---
 
@@ -150,13 +149,12 @@ cli/
 **목표:** 도구 호출 실패를 기록.
 
 **수직 슬라이스:**
-- `domain/log.rs`: `ToolFailure` 엔티티 추가
-- `adapter/log_repository.rs`: `save_tool_failure` 확장
-- `application/log_failure_handler.rs`
+- `domain/log.rs`: `ToolFailure` 타입 추가
+- `adapter/log_repo.rs`: `save_tool_failure` 함수 추가
+- `workflow/log_failure.rs`
 - `entrypoint/hooks/post_tool_failure.rs`
 
-**테스트:**
-- 기능 2와 동일한 패턴
+**테스트:** Feature 2와 동일한 패턴
 
 ---
 
@@ -165,14 +163,14 @@ cli/
 **목표:** 알림과 세션 종료를 기록.
 
 **수직 슬라이스:**
-- `domain/log.rs`: `SystemEvent` 엔티티 추가
-- `adapter/log_repository.rs`: `save_system_event` 확장
-- `application/log_system_handler.rs`
+- `domain/log.rs`: `SystemEvent` 타입 추가
+- `adapter/log_repo.rs`: `save_system_event` 함수 추가
+- `workflow/log_system.rs`
 - `entrypoint/hooks/notification.rs`, `hooks/stop.rs`
 
 **테스트:**
-- 기능 2와 동일한 패턴
-- `stop.rs`는 추가로 분석기를 백그라운드로 호출해야 함 (해당 동작은 Feature 6 이후 연결)
+- Feature 2와 동일한 패턴
+- `stop.rs`는 추가로 분석기를 백그라운드로 호출 (Feature 6 이후 연결)
 
 ---
 
@@ -181,9 +179,9 @@ cli/
 **목표:** 도구 호출 시작 시각을 기록해서 나중에 duration 계산.
 
 **수직 슬라이스:**
-- `adapter/timing.rs`: 세션별 시작 시간 저장 (임시 파일 또는 SQLite)
+- `adapter/timing.rs`: 세션별 시작 시간 저장/조회 함수 (임시 파일)
 - `entrypoint/hooks/pre_tool.rs`
-- Feature 2의 `post_tool`에서 이 시작 시간을 읽어 duration 계산
+- Feature 2의 `workflow/log_tool.rs`에서 시작 시간을 읽어 duration 계산
 
 **테스트:**
 - 동일 세션+도구 조합으로 pre → post 호출 시 duration 계산 확인
@@ -195,16 +193,14 @@ cli/
 **목표:** 세션 로그에서 메트릭 10개를 계산하여 저장.
 
 **수직 슬라이스:**
-- `domain/metrics.rs`: `SessionMetrics` 엔티티
-- `domain/metrics_calculator.rs`: 지표 계산 도메인 서비스 (순수 함수)
-- `domain/repository.rs`: `MetricsRepository` trait 추가
-- `adapter/metrics_repository.rs`: 구현
-- `application/analyze_handler.rs`: 로그 조회 → 계산 → 저장
+- `domain/metrics.rs`: `SessionMetrics` 타입 + `calculate` 순수 함수
+- `adapter/metrics_repo.rs`: `save`, `find_latest` 함수
+- `workflow/analyze.rs`: 샌드위치 (load → calculate → save)
 - `entrypoint/cli/analyze.rs`: `seogi analyze <project> <session_id>`
 
 **테스트:**
-- MetricsCalculator 순수 테스트 (입력 → 출력)
-- Handler 통합 테스트
+- `metrics::calculate` 순수 함수 단위 테스트 (입력 → 출력)
+- `workflow::analyze::run` 통합 테스트
 - 기존 Rust 분석기 결과와 동일한 값 나오는지 회귀 테스트
 
 **stop 훅 연결:**
@@ -217,13 +213,13 @@ cli/
 **목표:** 기존 JSONL 로그/메트릭을 SQLite로 옮김.
 
 **수직 슬라이스:**
-- `adapter/jsonl_reader.rs`: 기존 JSONL 파서 재사용 (pretty-printed + compact)
-- `application/migrate_handler.rs`: JSONL → Entity 변환 → Repository 저장
+- `adapter/jsonl_reader.rs`: 기존 JSONL 파서 (pretty-printed + compact)
+- `workflow/migrate.rs`: JSONL 읽기 → 도메인 타입 변환 → adapter 함수로 저장
 - `entrypoint/cli/migrate.rs`: `seogi migrate`
 
 **테스트:**
 - 샘플 JSONL 디렉토리 → DB 변환
-- 재실행 시 중복 없음 (id 기반 `INSERT OR IGNORE`)
+- 재실행 시 중복 없음 (컨텐츠 기반 id + `INSERT OR IGNORE`)
 - 파싱 실패 엔트리는 건너뛰고 경고
 - 실제 `~/seogi-logs/` 데이터로 dry-run
 
@@ -234,11 +230,13 @@ cli/
 **목표:** 기간/프로젝트별 메트릭 통계 출력.
 
 **수직 슬라이스:**
-- `application/report_handler.rs`: 메트릭 조회 + 집계
+- `domain/metrics.rs`: 통계 집계 순수 함수 (`aggregate`)
+- `adapter/metrics_repo.rs`: `list_by_range` 함수
+- `workflow/report.rs`: 샌드위치 (load → aggregate → print 포매팅)
 - `entrypoint/cli/report.rs`: `seogi report --from --to --project`
 
 **테스트:**
-- 알려진 데이터셋으로 통계 계산 정확성
+- 알려진 데이터셋으로 통계 계산 정확성 (순수 함수 단위 테스트)
 - 기존 출력 포맷과 동일
 - 빈 기간/단일 세션 엣지 케이스
 
@@ -249,10 +247,9 @@ cli/
 **목표:** 하니스 변경 이력을 SQLite에 기록.
 
 **수직 슬라이스:**
-- `domain/changelog.rs`: `ChangelogEntry` 엔티티
-- `domain/repository.rs`: `ChangelogRepository` trait
-- `adapter/changelog_repository.rs`
-- `application/changelog_handler.rs`
+- `domain/changelog.rs`: `ChangelogEntry` 타입
+- `adapter/changelog_repo.rs`: `save` 함수
+- `workflow/changelog.rs`: 이력 추가 workflow
 - `entrypoint/cli/changelog.rs`
 
 **테스트:**
