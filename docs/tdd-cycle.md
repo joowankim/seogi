@@ -1,6 +1,19 @@
 # TDD 사이클
 
-seogi 프로젝트의 기본 개발 워크플로우. 모든 기능 구현은 이 사이클을 따른다.
+기획 완료 후 기능을 구현하는 워크플로우. 기획 단계는 [feature-planning.md](./feature-planning.md) 참조.
+
+---
+
+## 전제 조건
+
+이 사이클은 다음이 완료된 상태에서 시작한다:
+
+- Feature 문서 작성 완료 (`docs/features/feature-XX-<name>.md`)
+- QA 목록 작성 완료
+- Test Pyramid 설계 완료
+- 사용자 승인 완료
+
+승인 없이 구현에 들어가지 않는다.
 
 ---
 
@@ -12,31 +25,26 @@ seogi 프로젝트의 기본 개발 워크플로우. 모든 기능 구현은 이
 | 테스트 레벨 | Test Pyramid (단위 > 통합 > E2E) |
 | Mock 전략 | Classicist (mock 대신 실제 인메모리 SQLite 사용) |
 | 커밋 주기 | Safe point (모든 테스트 녹색일 때만 커밋) |
-| 브랜치 커버리지 | 100% (`cargo llvm-cov` 측정) |
+| 브랜치 커버리지 | 100% (`cargo llvm-cov --branch` 측정) |
 
 **용어 정의:**
-- **Inside-out**: 순수 도메인(엔티티, Value Object, Domain Service)부터 시작해서 바깥으로
+- **Inside-out**: 순수 도메인(Value Object, 순수 함수)부터 시작해서 바깥으로
 - **Outside-in**: 외부 인터페이스(CLI/훅)부터 시작해서 안쪽으로
-- **Classicist**: 실제 구현체 사용 (예: 인메모리 SQLite 실제 Repository)
-- **Mockist**: 협력자를 mock으로 대체
+- **Classicist**: 실제 구현체 사용 (예: 인메모리 SQLite)
+- **Mockist**: 협력자를 mock으로 대체 (이 프로젝트에서는 미사용)
 
 ---
 
 ## 절차
 
 ```
-[Feature 시작]
-├─ 0. 기획
-│   ├─ feature 문서 작성 (docs/features/feature-XX-<name>.md)
-│   ├─ QA 목록 작성 (acceptance criteria)
-│   └─ Test Pyramid 설계 (E2E / 통합 / 단위 분배)
+[기획 승인 완료]
+    ↓
+[TDD 사이클 시작]
 ├─ 1. E2E 테스트 선작성 (RED)
-│   ├─ tests/ 디렉토리에 E2E 테스트 작성
-│   ├─ 모든 QA 항목에 대응
-│   └─ 모든 테스트 실패 상태에서 시작
 ├─ 2. 내부 구현
 │   ├─ Inside-out: domain 단위 테스트 + 구현
-│   ├─ Outside-in: application handler 테스트 + 구현
+│   ├─ Outside-in: workflow 함수 테스트 + 구현
 │   ├─ Entrypoint: E2E로 커버
 │   └─ 각 유닛마다 RED → GREEN → REFACTOR → safe point commit
 ├─ 3. 통합 확인
@@ -47,52 +55,6 @@ seogi 프로젝트의 기본 개발 워크플로우. 모든 기능 구현은 이
 │   └─ 깨지면 즉시 revert
 └─ 5. Feature 완료 커밋
 ```
-
----
-
-## 0. 기획
-
-구현 시작 전 세 가지 산출물을 만든다.
-
-### 0-1. Feature 문서
-
-`docs/features/feature-XX-<name>.md` 경로에 작성.
-
-**포함할 내용:**
-- **목적**: 이 기능이 왜 필요한가 (ground-truth 연결)
-- **입력**: 사용자/시스템이 제공하는 데이터
-- **출력**: 기능이 생성하는 데이터 또는 부수효과
-- **성공 시나리오**: 정상 동작 흐름
-- **실패 시나리오**: 에러 조건과 처리 방식
-- **제약 조건**: 성능, 보안, 호환성 등
-
-### 0-2. QA 목록
-
-**acceptance criteria**. 각 항목은 테스트 가능한 검증 가능 명제여야 한다.
-
-```
-예시 (post-tool 훅):
-✓ 유효한 JSON stdin 전달 시 tool_uses 테이블에 한 행 추가
-✓ tool.name == "Bash"인 경우 tool.input.command이 로그에 보존
-✓ duration_ms는 pre-tool 기록과의 차이로 계산
-✓ session_id가 누락된 입력은 "unknown"으로 저장
-✓ 잘못된 JSON stdin은 에러 반환 + DB 미변경
-```
-
-### 0-3. Test Pyramid 설계
-
-각 QA 항목이 어느 테스트 레벨에서 검증될지 분배:
-
-| 레벨 | 대상 | 비중 |
-|---|---|---|
-| 단위 (unit) | 순수 도메인 로직 (Value Object 검증, 지표 계산) | 많음 |
-| 통합 (integration) | 여러 계층 조합 (Handler + Repository) | 중간 |
-| E2E | 바이너리 호출, stdin/stdout, 실제 DB 파일 | 적음 |
-
-**원칙:**
-- 피드백 속도가 빠른 단위 테스트를 많이
-- E2E는 QA 목록에 대응하는 핵심 경로만
-- 인프라 없이 재현 가능한 설정 (임시 디렉토리 + SQLite 파일)
 
 ---
 
