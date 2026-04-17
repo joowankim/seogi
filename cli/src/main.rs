@@ -40,6 +40,11 @@ enum Commands {
         #[command(subcommand)]
         action: ChangelogAction,
     },
+    /// Claude Code 훅
+    Hook {
+        #[command(subcommand)]
+        action: HookAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -51,23 +56,38 @@ enum ChangelogAction {
     },
 }
 
+#[derive(Subcommand)]
+enum HookAction {
+    /// 도구 사용 성공 기록 (`PostToolUse`)
+    PostTool,
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let config = seogi::config::Config::load(cli.config.as_deref())?;
 
     match cli.command {
         Commands::Analyze {
             project,
             session_id,
         } => {
+            let config = seogi::config::Config::load(cli.config.as_deref())?;
             seogi::commands::analyze::run(&config, &project, &session_id)?;
         }
         Commands::Report { from, to, project } => {
+            let config = seogi::config::Config::load(cli.config.as_deref())?;
             seogi::commands::report::run(&config, &from, &to, project.as_deref())?;
         }
-        Commands::Changelog { action } => match action {
-            ChangelogAction::Add { description } => {
-                seogi::commands::changelog::add(&config, &description)?;
+        Commands::Changelog { action } => {
+            let config = seogi::config::Config::load(cli.config.as_deref())?;
+            match action {
+                ChangelogAction::Add { description } => {
+                    seogi::commands::changelog::add(&config, &description)?;
+                }
+            }
+        }
+        Commands::Hook { action } => match action {
+            HookAction::PostTool => {
+                seogi::entrypoint::hooks::post_tool::run()?;
             }
         },
     }
