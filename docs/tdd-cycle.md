@@ -58,6 +58,26 @@
 
 ---
 
+## QA 항목 작성 기준
+
+QA 항목은 테스트 코드로 직접 변환할 수 있을 만큼 **구체적**이어야 한다. '올바르게', '정상적으로', '적절히' 같은 추상적 표현 대신 **입력값, 기대 출력값, 비교 방법**을 명시한다.
+
+**나쁜 예:**
+```
+✗ DomainError::Database가 올바르게 생성된다
+✗ 스키마가 정상적으로 적용된다
+✗ 에러가 적절히 처리된다
+```
+
+**좋은 예:**
+```
+✓ DomainError::Database("connection failed")의 Display 출력이 "Database error: connection failed"이다
+✓ 초기화 후 sqlite_master에 9개 테이블 이름(projects, statuses, ...)이 존재한다
+✓ 잘못된 JSON stdin은 exit code 1 + stderr에 "invalid JSON" 포함 + DB 행 수 변화 없음
+```
+
+---
+
 ## 1. E2E 테스트 선작성 (RED)
 
 기획된 QA 목록을 기반으로 E2E 테스트를 먼저 작성한다. 구현이 없으므로 모두 실패한다.
