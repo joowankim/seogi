@@ -7,6 +7,9 @@ pub enum AdapterError {
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("JSON parse error: {0}")]
+    Json(#[from] serde_json::Error),
 }
 
 #[cfg(test)]
