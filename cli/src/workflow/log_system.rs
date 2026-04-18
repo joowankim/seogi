@@ -4,6 +4,7 @@ use serde::Deserialize;
 use crate::adapter::error::AdapterError;
 use crate::adapter::log_repo;
 use crate::domain::log::{self, SystemEvent};
+use crate::domain::value::{SessionId, Timestamp};
 
 #[derive(Debug, Deserialize)]
 struct NotificationInput {
@@ -30,13 +31,13 @@ pub fn run_notification(conn: &Connection, stdin_json: &str) -> Result<(), Adapt
     // [Top: Impure]
     let input: NotificationInput = serde_json::from_str(stdin_json)?;
     let id = uuid::Uuid::new_v4().simple().to_string();
-    let timestamp = chrono::Utc::now().timestamp_millis();
+    let timestamp = Timestamp::now();
 
     // [Middle: Pure]
     let project = log::extract_project_from_cwd(&input.cwd);
     let event = SystemEvent::new(
         id,
-        input.session_id,
+        SessionId::new(input.session_id),
         project,
         input.cwd,
         "Notification".to_string(),
@@ -61,13 +62,13 @@ pub fn run_stop(conn: &Connection, stdin_json: &str) -> Result<(), AdapterError>
     // [Top: Impure]
     let input: StopInput = serde_json::from_str(stdin_json)?;
     let id = uuid::Uuid::new_v4().simple().to_string();
-    let timestamp = chrono::Utc::now().timestamp_millis();
+    let timestamp = Timestamp::now();
 
     // [Middle: Pure]
     let project = log::extract_project_from_cwd(&input.cwd);
     let event = SystemEvent::new(
         id,
-        input.session_id,
+        SessionId::new(input.session_id),
         project,
         input.cwd,
         "Stop".to_string(),
@@ -102,7 +103,7 @@ mod tests {
 
         let results = log_repo::list_system_events_by_session(&conn, "sess-1").unwrap();
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].session_id(), "sess-1");
+        assert_eq!(results[0].session_id().as_str(), "sess-1");
         assert_eq!(results[0].event_type(), "Notification");
         assert_eq!(results[0].content(), "Permission required for Bash");
         assert_eq!(results[0].project(), "seogi");
@@ -125,7 +126,7 @@ mod tests {
 
         let results = log_repo::list_system_events_by_session(&conn, "sess-1").unwrap();
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].session_id(), "sess-1");
+        assert_eq!(results[0].session_id().as_str(), "sess-1");
         assert_eq!(results[0].event_type(), "Stop");
         assert_eq!(results[0].content(), "end_turn");
         assert_eq!(results[0].project(), "seogi");

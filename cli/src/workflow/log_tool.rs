@@ -4,6 +4,7 @@ use serde::Deserialize;
 use crate::adapter::error::AdapterError;
 use crate::adapter::log_repo;
 use crate::domain::log::{self, ToolUse};
+use crate::domain::value::{Ms, SessionId, Timestamp};
 
 #[derive(Debug, Deserialize)]
 struct HookInput {
@@ -25,19 +26,19 @@ pub fn run(conn: &Connection, stdin_json: &str) -> Result<(), AdapterError> {
     // [Top: Impure] JSON 파싱 + ID/타임스탬프 생성
     let input: HookInput = serde_json::from_str(stdin_json)?;
     let id = uuid::Uuid::new_v4().simple().to_string();
-    let timestamp = chrono::Utc::now().timestamp_millis();
+    let timestamp = Timestamp::now();
     let tool_input_str = serde_json::to_string(&input.tool_input)?;
 
     // [Middle: Pure] 도메인 타입 생성
     let project = log::extract_project_from_cwd(&input.cwd);
     let tool_use = ToolUse::new(
         id,
-        input.session_id,
+        SessionId::new(input.session_id),
         project,
         input.cwd,
         input.tool_name,
         tool_input_str,
-        0,
+        Ms::zero(),
         timestamp,
     );
 
@@ -71,12 +72,12 @@ mod tests {
 
         let results = log_repo::list_by_session(&conn, "sess-1").unwrap();
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].session_id(), "sess-1");
+        assert_eq!(results[0].session_id().as_str(), "sess-1");
         assert_eq!(results[0].tool_name(), "Bash");
         assert_eq!(results[0].project(), "seogi");
         assert_eq!(results[0].project_path(), "/Users/kim/projects/seogi");
         assert_eq!(results[0].tool_input(), r#"{"command":"ls"}"#);
-        assert_eq!(results[0].duration_ms(), 0);
+        assert_eq!(results[0].duration(), Ms::zero());
     }
 
     #[test]
