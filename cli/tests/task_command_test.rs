@@ -338,3 +338,128 @@ fn test_task_list_filtered() {
     assert_eq!(arr[0]["id"], "SEO-1");
     assert_eq!(arr[0]["title"], "Seogi feature");
 }
+
+fn create_task(db: &str, title: &str, label: &str) {
+    let output = run_seogi(
+        &[
+            "task",
+            "create",
+            "--project",
+            "Seogi",
+            "--title",
+            title,
+            "--description",
+            "설명",
+            "--label",
+            label,
+        ],
+        db,
+    );
+    assert!(
+        output.status.success(),
+        "task create failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+// Q11: task update --title 성공, DB 반영
+#[test]
+fn test_task_update_title() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    create_project(db);
+    create_task(db, "원래 제목", "feature");
+
+    let output = run_seogi(&["task", "update", "SEO-1", "--title", "변경된 제목"], db);
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("SEO-1"), "stdout: {stdout}");
+
+    // DB 검증
+    let conn = Connection::open(&db_path).unwrap();
+    let title: String = conn
+        .query_row("SELECT title FROM tasks WHERE id = 'SEO-1'", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(title, "변경된 제목");
+}
+
+// Q12: 존재하지 않는 태스크 → 에러
+#[test]
+fn test_task_update_not_found() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    create_project(db);
+
+    let output = run_seogi(&["task", "update", "SEO-99", "--title", "new"], db);
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("SEO-99"), "stderr: {stderr}");
+}
+
+// Q13: 옵션 없음 → 에러
+#[test]
+fn test_task_update_no_options() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    create_project(db);
+    create_task(db, "제목", "feature");
+
+    let output = run_seogi(&["task", "update", "SEO-1"], db);
+
+    assert!(!output.status.success());
+}
+
+// Q14: 복합 수정 (title + label)
+#[test]
+fn test_task_update_combined() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    create_project(db);
+    create_task(db, "원래", "feature");
+
+    let output = run_seogi(
+        &[
+            "task",
+            "update",
+            "SEO-1",
+            "--title",
+            "새 제목",
+            "--label",
+            "bug",
+        ],
+        db,
+    );
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let conn = Connection::open(&db_path).unwrap();
+    let (title, label): (String, String) = conn
+        .query_row(
+            "SELECT title, label FROM tasks WHERE id = 'SEO-1'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(title, "새 제목");
+    assert_eq!(label, "bug");
+}

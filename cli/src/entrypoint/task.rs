@@ -52,3 +52,21 @@ pub fn list(
     }
     Ok(())
 }
+
+/// `seogi task update` 핸들러.
+///
+/// # Errors
+///
+/// 태스크 미존재, 옵션 미지정, 빈 제목/설명, 무효 라벨, DB 에러 시 `anyhow::Error`.
+pub fn update(
+    conn: &Connection,
+    task_id: &str,
+    title: Option<&str>,
+    description: Option<&str>,
+    label: Option<&str>,
+) -> Result<()> {
+    workflow::task::update(conn, task_id, title, description, label)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    println!("Updated task {task_id}");
+    Ok(())
+}
