@@ -21,6 +21,7 @@ fn run_hook(db_path: &str, hook: &str, stdin_data: &[u8]) -> std::process::Outpu
                 .parent()
                 .unwrap_or(std::path::Path::new("/tmp")),
         )
+        .env("SEOGI_NO_NOTIFY", "1")
         .env("SEOGI_TIMING_DIR", "/tmp/seogi-test-timing-report")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

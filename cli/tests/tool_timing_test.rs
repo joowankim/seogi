@@ -6,6 +6,7 @@ use rusqlite::Connection;
 fn run_hook(args: &[&str], env_vars: &[(&str, &str)], stdin_data: &[u8]) -> std::process::Output {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_seogi"));
     cmd.args(args)
+        .env("SEOGI_NO_NOTIFY", "1")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
