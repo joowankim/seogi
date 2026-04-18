@@ -11,7 +11,7 @@ use crate::domain::log::{SystemEvent, ToolFailure, ToolUse};
 /// DB 쓰기 실패 시 `AdapterError::Database`.
 pub fn save_tool_use(conn: &Connection, tool_use: &ToolUse) -> Result<(), AdapterError> {
     conn.execute(
-        "INSERT INTO tool_uses (id, session_id, project, project_path, tool_name, tool_input, duration_ms, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT OR IGNORE INTO tool_uses (id, session_id, project, project_path, tool_name, tool_input, duration_ms, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         (
             tool_use.id(),
             tool_use.session_id().as_str(),
@@ -53,7 +53,7 @@ pub fn save_tool_failure(
     tool_failure: &ToolFailure,
 ) -> Result<(), AdapterError> {
     conn.execute(
-        "INSERT INTO tool_failures (id, session_id, project, project_path, tool_name, error, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT OR IGNORE INTO tool_failures (id, session_id, project, project_path, tool_name, error, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         (
             tool_failure.id(),
             tool_failure.session_id().as_str(),
@@ -94,7 +94,7 @@ pub fn list_failures_by_session(
 /// DB 쓰기 실패 시 `AdapterError::Database`.
 pub fn save_system_event(conn: &Connection, event: &SystemEvent) -> Result<(), AdapterError> {
     conn.execute(
-        "INSERT INTO system_events (id, session_id, project, project_path, event_type, content, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT OR IGNORE INTO system_events (id, session_id, project, project_path, event_type, content, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         (
             event.id(),
             event.session_id().as_str(),

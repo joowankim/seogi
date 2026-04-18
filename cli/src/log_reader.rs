@@ -53,7 +53,7 @@ pub fn read_session_logs(log_dir: &Path, project: &str, session_id: &str) -> Res
 }
 
 /// JSONL 콘텐츠를 파싱한다 (compact 한 줄 또는 pretty-printed 멀티라인 모두 지원).
-fn parse_jsonl_content(content: &str) -> Vec<LogEntry> {
+pub(crate) fn parse_jsonl_content(content: &str) -> Vec<LogEntry> {
     let mut entries = Vec::new();
     let trimmed = content.trim();
 
