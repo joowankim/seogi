@@ -16,10 +16,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// 세션 로그에서 메트릭을 계산하여 저장
+    /// 세션 로그에서 메트릭을 계산하여 JSON 출력
     Analyze {
-        /// 프로젝트 이름
-        project: String,
         /// 세션 ID
         session_id: String,
     },
@@ -74,12 +72,17 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Analyze {
-            project,
-            session_id,
-        } => {
-            let config = seogi::config::Config::load(cli.config.as_deref())?;
-            seogi::commands::analyze::run(&config, &project, &session_id)?;
+        Commands::Analyze { session_id } => {
+            let db_path = seogi::entrypoint::hooks::db_path();
+            let conn = seogi::adapter::db::initialize_db(&db_path)
+                .map_err(|e| anyhow::anyhow!("Failed to initialize database: {e}"))?;
+            let metrics = seogi::workflow::analyze::run(&conn, &session_id)
+                .map_err(|e| anyhow::anyhow!("Failed to analyze session: {e}"))?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&metrics)
+                    .map_err(|e| anyhow::anyhow!("Failed to serialize metrics: {e}"))?
+            );
         }
         Commands::Report { from, to, project } => {
             let config = seogi::config::Config::load(cli.config.as_deref())?;

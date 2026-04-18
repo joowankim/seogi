@@ -10,7 +10,8 @@ pub mod stop;
 ///
 /// `SEOGI_DB_PATH` 환경변수가 설정되어 있으면 그 값을 사용하고,
 /// 없으면 `$HOME/.seogi/seogi.db`를 기본값으로 사용한다.
-pub(crate) fn db_path() -> PathBuf {
+#[must_use]
+pub fn db_path() -> PathBuf {
     if let Ok(path) = std::env::var("SEOGI_DB_PATH") {
         return PathBuf::from(path);
     }
