@@ -1,9 +1,11 @@
+use std::str::FromStr;
+
+use chrono::DateTime;
 use rusqlite::Row;
 
 use crate::domain::log::{SystemEvent, ToolFailure, ToolUse};
-use chrono::DateTime;
-
 use crate::domain::project::{Project, ProjectPrefix};
+use crate::domain::status::{Status, StatusCategory};
 use crate::domain::value::{Ms, SessionId, Timestamp};
 
 /// `tool_uses` 테이블의 한 행을 `ToolUse` 도메인 타입으로 변환한다.
@@ -85,5 +87,23 @@ pub fn system_event_from_row(row: &Row<'_>) -> rusqlite::Result<SystemEvent> {
         row.get("event_type")?,
         row.get("content")?,
         Timestamp::new(row.get("timestamp")?),
+    ))
+}
+
+/// `statuses` 테이블의 한 행을 `Status` 도메인 타입으로 변환한다.
+///
+/// # Errors
+///
+/// 컬럼 읽기 또는 category 파싱 실패 시 `rusqlite::Error`.
+pub fn status_from_row(row: &Row<'_>) -> rusqlite::Result<Status> {
+    let category_str: String = row.get("category")?;
+    let category = StatusCategory::from_str(&category_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(e))
+    })?;
+    Ok(Status::from_row(
+        row.get("id")?,
+        row.get("name")?,
+        category,
+        row.get("position")?,
     ))
 }

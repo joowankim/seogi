@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use rusqlite::Connection;
 
 #[derive(Parser)]
 #[command(name = "seogi", version, about = "하니스 엔지니어링을 위한 계측 도구")]
@@ -45,6 +46,11 @@ enum Commands {
         #[command(subcommand)]
         action: ProjectAction,
     },
+    /// 상태 관리
+    Status {
+        #[command(subcommand)]
+        action: StatusAction,
+    },
     /// Claude Code 훅
     Hook {
         #[command(subcommand)]
@@ -75,6 +81,38 @@ enum ProjectAction {
 }
 
 #[derive(Subcommand)]
+enum StatusAction {
+    /// 상태 생성
+    Create {
+        /// 카테고리 (backlog, unstarted, started, completed, canceled)
+        #[arg(long)]
+        category: String,
+        /// 상태 이름
+        #[arg(long)]
+        name: String,
+    },
+    /// 상태 목록 조회
+    List {
+        /// JSON 형식으로 출력
+        #[arg(long)]
+        json: bool,
+    },
+    /// 상태 이름 수정
+    Update {
+        /// 수정할 Status ID
+        id: String,
+        /// 변경할 이름
+        #[arg(long)]
+        name: String,
+    },
+    /// 상태 삭제
+    Delete {
+        /// 삭제할 Status ID
+        id: String,
+    },
+}
+
+#[derive(Subcommand)]
 enum ChangelogAction {
     /// 변경 이력 추가
     Add {
@@ -97,14 +135,18 @@ enum HookAction {
     PreTool,
 }
 
+fn open_db() -> Result<Connection> {
+    let db_path = seogi::entrypoint::hooks::db_path();
+    seogi::adapter::db::initialize_db(&db_path)
+        .map_err(|e| anyhow::anyhow!("Failed to initialize database: {e}"))
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
         Commands::Analyze { session_id } => {
-            let db_path = seogi::entrypoint::hooks::db_path();
-            let conn = seogi::adapter::db::initialize_db(&db_path)
-                .map_err(|e| anyhow::anyhow!("Failed to initialize database: {e}"))?;
+            let conn = open_db()?;
             let metrics = seogi::workflow::analyze::run(&conn, &session_id)
                 .map_err(|e| anyhow::anyhow!("Failed to analyze session: {e}"))?;
             println!(
@@ -114,18 +156,14 @@ fn main() -> Result<()> {
             );
         }
         Commands::Report { from, to, project } => {
-            let db_path = seogi::entrypoint::hooks::db_path();
-            let conn = seogi::adapter::db::initialize_db(&db_path)
-                .map_err(|e| anyhow::anyhow!("Failed to initialize database: {e}"))?;
+            let conn = open_db()?;
             let output = seogi::workflow::report::run(&conn, &from, &to, project.as_deref())
                 .map_err(|e| anyhow::anyhow!("Failed to generate report: {e}"))?;
             print!("{output}");
         }
         Commands::Changelog { action } => match action {
             ChangelogAction::Add { description } => {
-                let db_path = seogi::entrypoint::hooks::db_path();
-                let conn = seogi::adapter::db::initialize_db(&db_path)
-                    .map_err(|e| anyhow::anyhow!("Failed to initialize database: {e}"))?;
+                let conn = open_db()?;
                 let ts = seogi::workflow::changelog::run(&conn, &description)
                     .map_err(|e| anyhow::anyhow!("Failed to save changelog: {e}"))?;
                 println!("Recorded at {ts}");
@@ -134,9 +172,7 @@ fn main() -> Result<()> {
         Commands::Migrate => {
             let config = seogi::config::Config::load(cli.config.as_deref())?;
             let log_dir = config.log_dir_expanded();
-            let db_path = seogi::entrypoint::hooks::db_path();
-            let conn = seogi::adapter::db::initialize_db(&db_path)
-                .map_err(|e| anyhow::anyhow!("Failed to initialize database: {e}"))?;
+            let conn = open_db()?;
             let summary = seogi::workflow::migrate::run(&conn, &log_dir)
                 .map_err(|e| anyhow::anyhow!("Failed to migrate: {e}"))?;
             println!(
@@ -144,40 +180,34 @@ fn main() -> Result<()> {
                 summary.tool_uses, summary.tool_failures, summary.skipped, summary.files
             );
         }
-        Commands::Project { action } => match action {
-            ProjectAction::Create { name, prefix, goal } => {
-                let db_path = seogi::entrypoint::hooks::db_path();
-                let conn = seogi::adapter::db::initialize_db(&db_path)
-                    .map_err(|e| anyhow::anyhow!("Failed to initialize database: {e}"))?;
-                let project =
-                    seogi::workflow::project::create(&conn, &name, prefix.as_deref(), &goal)
-                        .map_err(|e| anyhow::anyhow!("{e}"))?;
-                println!(
-                    "Created project \"{}\" ({})",
-                    project.name(),
-                    project.prefix()
-                );
-            }
-            ProjectAction::List { json } => {
-                let db_path = seogi::entrypoint::hooks::db_path();
-                let conn = seogi::adapter::db::initialize_db(&db_path)
-                    .map_err(|e| anyhow::anyhow!("Failed to initialize database: {e}"))?;
-                let projects =
-                    seogi::workflow::project::list(&conn).map_err(|e| anyhow::anyhow!("{e}"))?;
-                if json {
-                    println!(
-                        "{}",
-                        serde_json::to_string_pretty(&projects)
-                            .map_err(|e| anyhow::anyhow!("Failed to serialize: {e}"))?
-                    );
-                } else {
-                    println!("{:<8} {:<20} GOAL", "PREFIX", "NAME");
-                    for p in &projects {
-                        println!("{:<8} {:<20} {}", p.prefix(), p.name(), p.goal());
-                    }
+        Commands::Project { action } => {
+            let conn = open_db()?;
+            match action {
+                ProjectAction::Create { name, prefix, goal } => {
+                    seogi::entrypoint::project::create(&conn, &name, prefix.as_deref(), &goal)?;
+                }
+                ProjectAction::List { json } => {
+                    seogi::entrypoint::project::list(&conn, json)?;
                 }
             }
-        },
+        }
+        Commands::Status { action } => {
+            let conn = open_db()?;
+            match action {
+                StatusAction::Create { category, name } => {
+                    seogi::entrypoint::status::create(&conn, &category, &name)?;
+                }
+                StatusAction::List { json } => {
+                    seogi::entrypoint::status::list(&conn, json)?;
+                }
+                StatusAction::Update { id, name } => {
+                    seogi::entrypoint::status::update(&conn, &id, &name)?;
+                }
+                StatusAction::Delete { id } => {
+                    seogi::entrypoint::status::delete(&conn, &id)?;
+                }
+            }
+        }
         Commands::Hook { action } => {
             use seogi::entrypoint::hooks::{
                 notification, post_tool, post_tool_failure, pre_tool, run_safely, stop,

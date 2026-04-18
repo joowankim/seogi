@@ -5,4 +5,5 @@ pub mod hook_error;
 pub mod log_repo;
 pub mod mapper;
 pub mod project_repo;
+pub mod status_repo;
 pub mod timing;
