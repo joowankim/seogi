@@ -5,6 +5,7 @@ use regex::Regex;
 use serde::Serialize;
 
 use super::log::{ToolFailure, ToolUse};
+use super::value::Ms;
 
 static TEST_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\b(test|vitest|playwright|jest|pytest|mocha|karma)\b")
@@ -33,7 +34,8 @@ pub struct SessionMetrics {
     lint_invoked: bool,
     typecheck_invoked: bool,
     tool_call_count: u32,
-    session_duration_ms: i64,
+    #[serde(rename = "session_duration_ms")]
+    session_duration: Ms,
     edit_files: Vec<String>,
     bash_error_rate: f64,
 }
@@ -80,8 +82,8 @@ impl SessionMetrics {
     }
 
     #[must_use]
-    pub fn session_duration_ms(&self) -> i64 {
-        self.session_duration_ms
+    pub fn session_duration(&self) -> Ms {
+        self.session_duration
     }
 
     #[must_use]
@@ -113,7 +115,7 @@ pub fn calculate(
         lint_invoked: calc_invoked(tool_uses, &LINT_PATTERN),
         typecheck_invoked: calc_invoked(tool_uses, &TYPECHECK_PATTERN),
         tool_call_count: tool_uses.len() as u32,
-        session_duration_ms: calc_session_duration(tool_uses),
+        session_duration: calc_session_duration(tool_uses),
         edit_files: calc_edit_files(tool_uses),
         bash_error_rate: calc_bash_error_rate(tool_uses, tool_failures),
     }
@@ -172,15 +174,15 @@ fn calc_invoked(tool_uses: &[ToolUse], pattern: &Regex) -> bool {
         .any(|tu| pattern.is_match(&bash_command(tu)))
 }
 
-/// 8. 첫 도구 호출 ~ 마지막 도구 호출 시간차 (ms)
-fn calc_session_duration(tool_uses: &[ToolUse]) -> i64 {
+/// 8. 첫 도구 호출 ~ 마지막 도구 호출 시간차
+fn calc_session_duration(tool_uses: &[ToolUse]) -> Ms {
     if tool_uses.len() <= 1 {
-        return 0;
+        return Ms::zero();
     }
 
     let first = tool_uses.first().unwrap().timestamp().value();
     let last = tool_uses.last().unwrap().timestamp().value();
-    last - first
+    Ms::new(last - first)
 }
 
 /// 9. Edit/Write한 고유 파일 목록
@@ -331,13 +333,13 @@ mod tests {
             make_tool_use("Read", "{}", 1000),
             make_tool_use("Edit", r#"{"file_path":"a.rs"}"#, 5000),
         ];
-        assert_eq!(calc_session_duration(&uses), 4000);
+        assert_eq!(calc_session_duration(&uses), Ms::new(4000));
     }
 
     #[test]
     fn test_session_duration_single() {
         let uses = vec![make_tool_use("Read", "{}", 1000)];
-        assert_eq!(calc_session_duration(&uses), 0);
+        assert_eq!(calc_session_duration(&uses), Ms::zero());
     }
 
     #[test]
@@ -376,7 +378,7 @@ mod tests {
         assert!(!m.lint_invoked());
         assert!(!m.typecheck_invoked());
         assert_eq!(m.tool_call_count(), 0);
-        assert_eq!(m.session_duration_ms(), 0);
+        assert_eq!(m.session_duration().value(), 0);
         assert!(m.edit_files().is_empty());
         assert!((m.bash_error_rate() - 0.0).abs() < f64::EPSILON);
     }
