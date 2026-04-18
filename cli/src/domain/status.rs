@@ -3,7 +3,8 @@ use std::str::FromStr;
 
 use crate::domain::error::DomainError;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum StatusCategory {
     Backlog,
     Unstarted,
@@ -45,6 +46,67 @@ impl FromStr for StatusCategory {
                 "invalid status category: {s}"
             ))),
         }
+    }
+}
+
+/// 태스크의 상태를 나타내는 엔티티.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Status {
+    id: String,
+    name: String,
+    category: StatusCategory,
+    position: i64,
+}
+
+impl Status {
+    /// 새 Status를 생성한다.
+    ///
+    /// # Errors
+    ///
+    /// name이 빈 문자열이면 `DomainError::Validation`.
+    pub fn new(name: &str, category: StatusCategory, position: i64) -> Result<Self, DomainError> {
+        if name.is_empty() {
+            return Err(DomainError::Validation(
+                "Status name must not be empty".to_string(),
+            ));
+        }
+        Ok(Self {
+            id: uuid::Uuid::new_v4().simple().to_string(),
+            name: name.to_string(),
+            category,
+            position,
+        })
+    }
+
+    /// DB에서 읽은 값으로 복원한다.
+    #[must_use]
+    pub fn from_row(id: String, name: String, category: StatusCategory, position: i64) -> Self {
+        Self {
+            id,
+            name,
+            category,
+            position,
+        }
+    }
+
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    #[must_use]
+    pub fn category(&self) -> StatusCategory {
+        self.category
+    }
+
+    #[must_use]
+    pub fn position(&self) -> i64 {
+        self.position
     }
 }
 
@@ -108,5 +170,28 @@ mod tests {
         assert!("invalid".parse::<StatusCategory>().is_err());
         assert!("".parse::<StatusCategory>().is_err());
         assert!("BACKLOG".parse::<StatusCategory>().is_err());
+    }
+
+    // Q1: UUID hex 32글자
+    #[test]
+    fn test_status_new_id() {
+        let status = Status::new("testing", StatusCategory::Started, 7).unwrap();
+        assert_eq!(status.id().len(), 32);
+        assert!(status.id().chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    // Q2: name, category, position 보존
+    #[test]
+    fn test_status_new_fields() {
+        let status = Status::new("testing", StatusCategory::Started, 7).unwrap();
+        assert_eq!(status.name(), "testing");
+        assert_eq!(status.category(), StatusCategory::Started);
+        assert_eq!(status.position(), 7);
+    }
+
+    // Q3: 빈 이름 → 에러
+    #[test]
+    fn test_status_new_empty_name() {
+        assert!(Status::new("", StatusCategory::Started, 0).is_err());
     }
 }

@@ -6,3 +6,4 @@ pub mod log_tool;
 pub mod migrate;
 pub mod project;
 pub mod report;
+pub mod status;
