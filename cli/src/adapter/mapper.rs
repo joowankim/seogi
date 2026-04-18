@@ -90,6 +90,26 @@ pub fn system_event_from_row(row: &Row<'_>) -> rusqlite::Result<SystemEvent> {
     ))
 }
 
+/// tasks JOIN statuses JOIN projects 쿼리 결과를 `TaskListRow`로 변환한다.
+///
+/// # Errors
+///
+/// 컬럼 읽기 실패 시 `rusqlite::Error`.
+pub fn task_list_row_from_row(
+    row: &Row<'_>,
+) -> rusqlite::Result<crate::adapter::task_repo::TaskListRow> {
+    Ok(crate::adapter::task_repo::TaskListRow {
+        id: row.get("id")?,
+        title: row.get("title")?,
+        description: row.get("description")?,
+        label: row.get("label")?,
+        status_name: row.get("status_name")?,
+        project_name: row.get("project_name")?,
+        created_at: row.get("created_at")?,
+        updated_at: row.get("updated_at")?,
+    })
+}
+
 /// `statuses` 테이블의 한 행을 `Status` 도메인 타입으로 변환한다.
 ///
 /// # Errors

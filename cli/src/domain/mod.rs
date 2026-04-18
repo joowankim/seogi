@@ -5,4 +5,5 @@ pub mod migrate;
 pub mod project;
 pub mod report;
 pub mod status;
+pub mod task;
 pub mod value;
