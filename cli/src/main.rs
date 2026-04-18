@@ -51,6 +51,11 @@ enum Commands {
         #[command(subcommand)]
         action: StatusAction,
     },
+    /// 태스크 관리
+    Task {
+        #[command(subcommand)]
+        action: TaskAction,
+    },
     /// Claude Code 훅
     Hook {
         #[command(subcommand)]
@@ -113,6 +118,40 @@ enum StatusAction {
 }
 
 #[derive(Subcommand)]
+enum TaskAction {
+    /// 태스크 생성
+    Create {
+        /// 프로젝트 이름
+        #[arg(long)]
+        project: String,
+        /// 태스크 제목
+        #[arg(long)]
+        title: String,
+        /// 태스크 설명
+        #[arg(long)]
+        description: String,
+        /// 라벨 (feature, bug, refactor, chore, docs)
+        #[arg(long)]
+        label: String,
+    },
+    /// 태스크 목록 조회
+    List {
+        /// 프로젝트 이름 필터
+        #[arg(long)]
+        project: Option<String>,
+        /// 상태 이름 필터
+        #[arg(long)]
+        status: Option<String>,
+        /// 라벨 필터
+        #[arg(long)]
+        label: Option<String>,
+        /// JSON 형식으로 출력
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
 enum ChangelogAction {
     /// 변경 이력 추가
     Add {
@@ -141,6 +180,7 @@ fn open_db() -> Result<Connection> {
         .map_err(|e| anyhow::anyhow!("Failed to initialize database: {e}"))
 }
 
+#[allow(clippy::too_many_lines)]
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -205,6 +245,33 @@ fn main() -> Result<()> {
                 }
                 StatusAction::Delete { id } => {
                     seogi::entrypoint::status::delete(&conn, &id)?;
+                }
+            }
+        }
+        Commands::Task { action } => {
+            let conn = open_db()?;
+            match action {
+                TaskAction::Create {
+                    project,
+                    title,
+                    description,
+                    label,
+                } => {
+                    seogi::entrypoint::task::create(&conn, &project, &title, &description, &label)?;
+                }
+                TaskAction::List {
+                    project,
+                    status,
+                    label,
+                    json,
+                } => {
+                    seogi::entrypoint::task::list(
+                        &conn,
+                        project.as_deref(),
+                        status.as_deref(),
+                        label.as_deref(),
+                        json,
+                    )?;
                 }
             }
         }

@@ -50,6 +50,32 @@ pub fn find_by_prefix(conn: &Connection, prefix: &str) -> rusqlite::Result<Optio
     rows.next().transpose()
 }
 
+/// 이름으로 프로젝트를 조회한다.
+///
+/// # Errors
+///
+/// SELECT 실패 시 `rusqlite::Error`.
+pub fn find_by_name(conn: &Connection, name: &str) -> rusqlite::Result<Option<Project>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, name, prefix, goal, next_seq, created_at, updated_at FROM projects WHERE name = ?1",
+    )?;
+    let mut rows = stmt.query_map([name], project_from_row)?;
+    rows.next().transpose()
+}
+
+/// 프로젝트의 `next_seq`를 1 증가시킨다.
+///
+/// # Errors
+///
+/// UPDATE 실패 시 `rusqlite::Error`.
+pub fn increment_next_seq(conn: &Connection, project_id: &str) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE projects SET next_seq = next_seq + 1 WHERE id = ?1",
+        [project_id],
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -100,5 +126,33 @@ mod tests {
         let conn = initialize_in_memory().unwrap();
         let found = find_by_prefix(&conn, "XYZ").unwrap();
         assert!(found.is_none());
+    }
+
+    // Q18: increment_next_seq 호출 후 next_seq 1 증가
+    #[test]
+    fn test_increment_next_seq() {
+        let conn = initialize_in_memory().unwrap();
+        let project = sample_project("SEO", "Seogi");
+        save(&conn, &project).unwrap();
+        assert_eq!(project.next_seq(), 1);
+
+        increment_next_seq(&conn, project.id()).unwrap();
+
+        let found = find_by_prefix(&conn, "SEO").unwrap().unwrap();
+        assert_eq!(found.next_seq(), 2);
+    }
+
+    #[test]
+    fn test_find_by_name() {
+        let conn = initialize_in_memory().unwrap();
+        let project = sample_project("SEO", "Seogi");
+        save(&conn, &project).unwrap();
+
+        let found = find_by_name(&conn, "Seogi").unwrap();
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().prefix().as_str(), "SEO");
+
+        let not_found = find_by_name(&conn, "None").unwrap();
+        assert!(not_found.is_none());
     }
 }

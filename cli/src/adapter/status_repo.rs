@@ -33,6 +33,19 @@ pub fn list_all(conn: &Connection) -> rusqlite::Result<Vec<Status>> {
     rows.collect()
 }
 
+/// 카테고리로 첫 번째 Status를 조회한다 (position 순).
+///
+/// # Errors
+///
+/// SELECT 실패 시 `rusqlite::Error`.
+pub fn find_by_category(conn: &Connection, category: &str) -> rusqlite::Result<Option<Status>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, name, category, position FROM statuses WHERE category = ?1 ORDER BY position LIMIT 1",
+    )?;
+    let mut rows = stmt.query_map([category], status_from_row)?;
+    rows.next().transpose()
+}
+
 /// id로 Status를 조회한다.
 ///
 /// # Errors
@@ -156,6 +169,18 @@ mod tests {
 
         let not_deleted = delete(&conn, "nonexistent").unwrap();
         assert!(!not_deleted);
+    }
+
+    #[test]
+    fn test_find_by_category() {
+        let conn = initialize_in_memory().unwrap();
+
+        let backlog = find_by_category(&conn, "backlog").unwrap();
+        assert!(backlog.is_some());
+        assert_eq!(backlog.unwrap().category(), StatusCategory::Backlog);
+
+        let not_found = find_by_category(&conn, "nonexistent").unwrap();
+        assert!(not_found.is_none());
     }
 
     // Q11: max_position

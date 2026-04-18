@@ -6,4 +6,6 @@ pub mod log_repo;
 pub mod mapper;
 pub mod project_repo;
 pub mod status_repo;
+pub mod task_event_repo;
+pub mod task_repo;
 pub mod timing;

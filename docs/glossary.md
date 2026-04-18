@@ -13,6 +13,7 @@
 
 ## 엔티티
 
+- **Label:** 태스크의 분류 라벨. 5개 고정 값(feature, bug, refactor, chore, docs)을 코드 enum으로 관리.
 - **MigratedRecord:** JSONL 마이그레이션 시 `LogEntry`를 `ToolUse` 또는 `ToolFailure`로 변환한 결과.
 - **Project:** 태스크를 묶는 관리 단위. name, `Prefix`, goal, next_seq을 포함하며 `projects` 테이블에 대응. next_seq은 태스크 시퀀스 채번에 사용되며 도메인에서 초기값 1로 설정.
 - **MigrateSummary:** 마이그레이션 결과 요약. tool_uses, tool_failures, skipped, files 카운터.
@@ -20,6 +21,8 @@
 - **Status:** 태스크의 상태를 나타내는 엔티티. name, category(`StatusCategory`), position을 포함하며 `statuses` 테이블에 대응. 기본 7개가 스키마 적용 시 시딩되고, 사용자 커스텀 상태 추가/수정/삭제 가능.
 - **Stats:** 수치 배열의 통계 요약. mean, median, stddev, P25, P75.
 - **SystemEvent:** Notification 또는 Stop 훅에서 수집된 시스템 이벤트 기록. `event_type`으로 구분.
+- **Task:** 단위 작업. id는 `{ProjectPrefix}-{seq}` 형식(예: SEO-1). title, description, `Label`, `Status`, `Project`를 포함하며 `tasks` 테이블에 대응. 생성 시 초기 상태는 backlog.
+- **TaskEvent:** 태스크 상태 변경 이벤트. from_status(nullable), to_status, session_id, timestamp를 포함하며 `task_events` 테이블에 대응. 최초 생성 시 from_status는 NULL.
 - **ToolFailure:** 도구 호출 실패 기록. `PostToolUseFailure` 훅에서 수집. `tool_failures` 테이블에 대응.
 - **ToolUse:** 도구 호출 성공 기록. `PostToolUse` 훅에서 수집. `tool_uses` 테이블에 대응.
 
@@ -40,6 +43,7 @@
 
 ## 프로젝트 고유 개념
 
+- **CLI_SESSION_ID:** CLI에서 생성한 `TaskEvent`의 `session_id`로 사용되는 도메인 상수. 값은 `"CLI"`.
 - **안전 실행 (run_safely):** 훅 에러 시 `hook-errors.log`에 기록하고 exit 0으로 종료하는 동작. Claude Code 세션이 훅 에러로 중단되지 않도록 보장.
 - **콘텐츠 기반 ID (Content-Based ID):** JSONL 마이그레이션 시 `SHA-256(session_id + timestamp + tool_name)`의 앞 32자 hex로 생성하는 결정론적 ID. 재실행 시 중복 방지.
 - **타이밍 파일 (Timing File):** `PreToolUse` 훅이 도구 호출 시작 시각을 기록하는 임시 파일. `PostToolUse` 훅이 읽어 `duration: Ms`를 계산한 뒤 삭제.
