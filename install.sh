@@ -4,86 +4,90 @@ set -euo pipefail
 echo "Installing seogi..."
 
 SEOGI_DIR="$HOME/.seogi"
-SEOGI_LOGS_DIR="$HOME/seogi-logs"
 CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 
-# 1. seogi 디렉토리 생성 및 파일 복사
+# 1. seogi 디렉토리 생성
 echo "Creating $SEOGI_DIR..."
-mkdir -p "$SEOGI_DIR/hooks" "$SEOGI_DIR/lib"
+mkdir -p "$SEOGI_DIR"
 
+# 2. Rust CLI 바이너리 설치
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cp "$SCRIPT_DIR/config.json" "$SEOGI_DIR/"
-cp "$SCRIPT_DIR/hooks/"*.sh "$SEOGI_DIR/hooks/"
-cp "$SCRIPT_DIR/lib/"*.sh "$SEOGI_DIR/lib/"
-chmod +x "$SEOGI_DIR/hooks/"*.sh "$SEOGI_DIR/lib/"*.sh
-
-# Rust CLI 바이너리 설치 (cargo install → ~/.cargo/bin/)
 if command -v cargo &>/dev/null; then
   echo "Installing seogi CLI via cargo..."
   cargo install --path "$SCRIPT_DIR/cli" --quiet
 else
-  echo "Warning: cargo not found. Install Rust toolchain to use seogi CLI."
+  echo "Error: cargo not found. Install Rust toolchain first."
+  exit 1
 fi
 
-# 2. 기본 로그 디렉토리 생성
-echo "Creating log directory at $SEOGI_LOGS_DIR..."
-mkdir -p "$SEOGI_LOGS_DIR"
-
-# 3. Claude Code 설정에 hook 추가
+# 3. Claude Code 설정에 Rust 훅 등록
 echo "Configuring Claude Code hooks..."
 mkdir -p "$(dirname "$CLAUDE_SETTINGS")"
 
+# 기존 seogi 훅 제거 후 새로 추가 (멱등성 보장)
 if [[ -f "$CLAUDE_SETTINGS" ]]; then
-  # 기존 설정이 있으면 백업
   cp "$CLAUDE_SETTINGS" "$CLAUDE_SETTINGS.backup"
 
-  # hooks 섹션 추가/병합
-  UPDATED_SETTINGS=$(jq --arg seogi_dir "$SEOGI_DIR" '
+  # 기존 seogi 훅 제거
+  CLEANED=$(jq '
+    if .hooks then
+      .hooks |= with_entries(
+        .value |= [.[]? | select(
+          (.hooks // []) | all(
+            (.command // "") | (contains("seogi hook") or contains(".seogi")) | not
+          )
+        )]
+      ) |
+      .hooks |= with_entries(select(.value | length > 0))
+    else . end
+  ' "$CLAUDE_SETTINGS")
+
+  # 새 seogi 훅 추가
+  UPDATED=$(echo "$CLEANED" | jq '
     .hooks = (.hooks // {}) |
     .hooks.PreToolUse = (.hooks.PreToolUse // []) + [{
       "matcher": "*",
-      "hooks": [{"type": "command", "command": ($seogi_dir + "/hooks/pre-tool.sh")}]
+      "hooks": [{"type": "command", "command": "seogi hook pre-tool"}]
     }] |
     .hooks.PostToolUse = (.hooks.PostToolUse // []) + [{
       "matcher": "*",
-      "hooks": [{"type": "command", "command": ($seogi_dir + "/hooks/post-tool.sh")}]
-    }] |
-    .hooks.Notification = (.hooks.Notification // []) + [{
-      "matcher": "*",
-      "hooks": [{"type": "command", "command": ($seogi_dir + "/hooks/notification.sh")}]
-    }] |
-    .hooks.Stop = (.hooks.Stop // []) + [{
-      "hooks": [{"type": "command", "command": ($seogi_dir + "/hooks/stop.sh")}]
+      "hooks": [{"type": "command", "command": "seogi hook post-tool"}]
     }] |
     .hooks.PostToolUseFailure = (.hooks.PostToolUseFailure // []) + [{
       "matcher": "*",
-      "hooks": [{"type": "command", "command": ($seogi_dir + "/hooks/post-tool-failure.sh")}]
+      "hooks": [{"type": "command", "command": "seogi hook post-tool-failure"}]
+    }] |
+    .hooks.Notification = (.hooks.Notification // []) + [{
+      "matcher": "*",
+      "hooks": [{"type": "command", "command": "seogi hook notification"}]
+    }] |
+    .hooks.Stop = (.hooks.Stop // []) + [{
+      "hooks": [{"type": "command", "command": "seogi hook stop"}]
     }]
-  ' "$CLAUDE_SETTINGS")
+  ')
 
-  echo "$UPDATED_SETTINGS" > "$CLAUDE_SETTINGS"
+  echo "$UPDATED" > "$CLAUDE_SETTINGS"
 else
-  # 새 설정 파일 생성
-  jq -n --arg seogi_dir "$SEOGI_DIR" '{
+  jq -n '{
     hooks: {
       PreToolUse: [{
         matcher: "*",
-        hooks: [{"type": "command", "command": ($seogi_dir + "/hooks/pre-tool.sh")}]
+        hooks: [{"type": "command", "command": "seogi hook pre-tool"}]
       }],
       PostToolUse: [{
         matcher: "*",
-        hooks: [{"type": "command", "command": ($seogi_dir + "/hooks/post-tool.sh")}]
-      }],
-      Notification: [{
-        matcher: "*",
-        hooks: [{"type": "command", "command": ($seogi_dir + "/hooks/notification.sh")}]
-      }],
-      Stop: [{
-        hooks: [{"type": "command", "command": ($seogi_dir + "/hooks/stop.sh")}]
+        hooks: [{"type": "command", "command": "seogi hook post-tool"}]
       }],
       PostToolUseFailure: [{
         matcher: "*",
-        hooks: [{"type": "command", "command": ($seogi_dir + "/hooks/post-tool-failure.sh")}]
+        hooks: [{"type": "command", "command": "seogi hook post-tool-failure"}]
+      }],
+      Notification: [{
+        matcher: "*",
+        hooks: [{"type": "command", "command": "seogi hook notification"}]
+      }],
+      Stop: [{
+        hooks: [{"type": "command", "command": "seogi hook stop"}]
       }]
     }
   }' > "$CLAUDE_SETTINGS"
@@ -92,8 +96,6 @@ fi
 echo ""
 echo "✓ seogi installed successfully!"
 echo ""
-echo "Configuration: $SEOGI_DIR/config.json"
-echo "Logs will be saved to: $SEOGI_LOGS_DIR"
+echo "Database: $SEOGI_DIR/seogi.db"
 echo ""
-echo "To customize, edit $SEOGI_DIR/config.json:"
-echo '  {"logDir": "~/seogi-logs", "maxFileSizeMB": 10}'
+echo "To migrate existing JSONL logs: seogi --config ~/.seogi/config.json migrate"

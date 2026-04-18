@@ -7,6 +7,7 @@ fn run_hook(db_path: &std::path::Path, args: &[&str], stdin_data: &[u8]) -> std:
     let mut child = Command::new(env!("CARGO_BIN_EXE_seogi"))
         .args(args)
         .env("SEOGI_DB_PATH", db_path)
+        .env("SEOGI_DIR", db_path.parent().unwrap())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -96,8 +97,7 @@ fn test_notification_hook_empty_stdin() {
 
     let output = run_hook(&db_path, &["hook", "notification"], b"");
 
-    assert!(!output.status.success());
-    assert!(!output.stderr.is_empty());
+    assert!(output.status.success(), "hooks should exit 0 even on error");
 }
 
 #[test]
@@ -107,8 +107,7 @@ fn test_notification_hook_invalid_json() {
 
     let output = run_hook(&db_path, &["hook", "notification"], b"{invalid}");
 
-    assert!(!output.status.success());
-    assert!(!output.stderr.is_empty());
+    assert!(output.status.success(), "hooks should exit 0 even on error");
 }
 
 #[test]
@@ -119,8 +118,7 @@ fn test_notification_hook_missing_session_id() {
 
     let output = run_hook(&db_path, &["hook", "notification"], input.as_bytes());
 
-    assert!(!output.status.success());
-    assert!(!output.stderr.is_empty());
+    assert!(output.status.success(), "hooks should exit 0 even on error");
 }
 
 #[test]
@@ -131,8 +129,7 @@ fn test_notification_hook_missing_message() {
 
     let output = run_hook(&db_path, &["hook", "notification"], input.as_bytes());
 
-    assert!(!output.status.success());
-    assert!(!output.stderr.is_empty());
+    assert!(output.status.success(), "hooks should exit 0 even on error");
 }
 
 // --- Stop E2E ---
@@ -185,8 +182,7 @@ fn test_stop_hook_empty_stdin() {
 
     let output = run_hook(&db_path, &["hook", "stop"], b"");
 
-    assert!(!output.status.success());
-    assert!(!output.stderr.is_empty());
+    assert!(output.status.success(), "hooks should exit 0 even on error");
 }
 
 #[test]
@@ -196,8 +192,7 @@ fn test_stop_hook_invalid_json() {
 
     let output = run_hook(&db_path, &["hook", "stop"], b"{invalid}");
 
-    assert!(!output.status.success());
-    assert!(!output.stderr.is_empty());
+    assert!(output.status.success(), "hooks should exit 0 even on error");
 }
 
 #[test]
@@ -208,8 +203,7 @@ fn test_stop_hook_missing_session_id() {
 
     let output = run_hook(&db_path, &["hook", "stop"], input.as_bytes());
 
-    assert!(!output.status.success());
-    assert!(!output.stderr.is_empty());
+    assert!(output.status.success(), "hooks should exit 0 even on error");
 }
 
 #[test]
@@ -220,6 +214,5 @@ fn test_stop_hook_missing_stop_reason() {
 
     let output = run_hook(&db_path, &["hook", "stop"], input.as_bytes());
 
-    assert!(!output.status.success());
-    assert!(!output.stderr.is_empty());
+    assert!(output.status.success(), "hooks should exit 0 even on error");
 }
