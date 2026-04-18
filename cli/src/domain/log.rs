@@ -88,6 +88,90 @@ impl fmt::Display for ToolUse {
     }
 }
 
+/// 도구 실패 기록.
+///
+/// Claude Code `PostToolUseFailure` 훅에서 수집된 도구 호출 실패 정보를 표현한다.
+/// `tool_failures` 테이블의 한 행에 대응한다.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ToolFailure {
+    id: String,
+    session_id: String,
+    project: String,
+    project_path: String,
+    tool_name: String,
+    error: String,
+    timestamp: i64,
+}
+
+impl ToolFailure {
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        id: String,
+        session_id: String,
+        project: String,
+        project_path: String,
+        tool_name: String,
+        error: String,
+        timestamp: i64,
+    ) -> Self {
+        Self {
+            id,
+            session_id,
+            project,
+            project_path,
+            tool_name,
+            error,
+            timestamp,
+        }
+    }
+
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    #[must_use]
+    pub fn session_id(&self) -> &str {
+        &self.session_id
+    }
+
+    #[must_use]
+    pub fn project(&self) -> &str {
+        &self.project
+    }
+
+    #[must_use]
+    pub fn project_path(&self) -> &str {
+        &self.project_path
+    }
+
+    #[must_use]
+    pub fn tool_name(&self) -> &str {
+        &self.tool_name
+    }
+
+    #[must_use]
+    pub fn error(&self) -> &str {
+        &self.error
+    }
+
+    #[must_use]
+    pub fn timestamp(&self) -> i64 {
+        self.timestamp
+    }
+}
+
+impl fmt::Display for ToolFailure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "[{}] {} FAILED ({})",
+            self.session_id, self.tool_name, self.id
+        )
+    }
+}
+
 /// `cwd` 경로에서 프로젝트 이름을 추출한다.
 ///
 /// 경로의 마지막 컴포넌트를 반환한다. 루트(`/`) 등 컴포넌트가 없으면 `"unknown"`을 반환한다.
@@ -151,5 +235,39 @@ mod tests {
     fn tool_use_display() {
         let tu = sample_tool_use();
         assert_eq!(format!("{tu}"), "[sess-1] Bash (abc123)");
+    }
+
+    fn sample_tool_failure() -> ToolFailure {
+        ToolFailure::new(
+            "fail123".to_string(),
+            "sess-1".to_string(),
+            "seogi".to_string(),
+            "/Users/kim/projects/seogi".to_string(),
+            "Bash".to_string(),
+            "Permission denied".to_string(),
+            1_713_000_000_000,
+        )
+    }
+
+    #[test]
+    fn tool_failure_creation_and_getters() {
+        let tf = sample_tool_failure();
+
+        assert_eq!(tf.id(), "fail123");
+        assert_eq!(tf.session_id(), "sess-1");
+        assert_eq!(tf.project(), "seogi");
+        assert_eq!(tf.project_path(), "/Users/kim/projects/seogi");
+        assert_eq!(tf.tool_name(), "Bash");
+        assert_eq!(tf.error(), "Permission denied");
+        assert_eq!(tf.timestamp(), 1_713_000_000_000);
+
+        // Clone + PartialEq
+        assert_eq!(tf.clone(), tf);
+    }
+
+    #[test]
+    fn tool_failure_display() {
+        let tf = sample_tool_failure();
+        assert_eq!(format!("{tf}"), "[sess-1] Bash FAILED (fail123)");
     }
 }
