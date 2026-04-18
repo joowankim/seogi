@@ -2,7 +2,7 @@ use rusqlite::Connection;
 use serde::Deserialize;
 
 use crate::adapter::error::AdapterError;
-use crate::adapter::log_repo;
+use crate::adapter::{log_repo, timing};
 use crate::domain::log::{self, ToolUse};
 use crate::domain::value::{Ms, SessionId, Timestamp};
 
@@ -12,6 +12,8 @@ struct HookInput {
     tool_name: String,
     #[serde(default)]
     tool_input: serde_json::Value,
+    #[serde(default)]
+    tool_use_id: String,
     cwd: String,
 }
 
@@ -26,11 +28,14 @@ pub fn run(conn: &Connection, stdin_json: &str) -> Result<(), AdapterError> {
     // [Top: Impure] JSON 파싱 + ID/타임스탬프 생성
     let input: HookInput = serde_json::from_str(stdin_json)?;
     let id = uuid::Uuid::new_v4().simple().to_string();
-    let timestamp = Timestamp::now();
+    let now = Timestamp::now();
     let tool_input_str = serde_json::to_string(&input.tool_input)?;
+    let timing_dir = timing::timing_dir();
+    let start_time = timing::read_and_remove_start_time(&timing_dir, &input.tool_use_id);
 
     // [Middle: Pure] 도메인 타입 생성
     let project = log::extract_project_from_cwd(&input.cwd);
+    let duration = start_time.map_or(Ms::zero(), |start| Ms::new(now.value() - start.value()));
     let tool_use = ToolUse::new(
         id,
         SessionId::new(input.session_id),
@@ -38,8 +43,8 @@ pub fn run(conn: &Connection, stdin_json: &str) -> Result<(), AdapterError> {
         input.cwd,
         input.tool_name,
         tool_input_str,
-        Ms::zero(),
-        timestamp,
+        duration,
+        now,
     );
 
     // [Bottom: Impure] DB 저장

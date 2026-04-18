@@ -3,6 +3,7 @@ use std::path::PathBuf;
 pub mod notification;
 pub mod post_tool;
 pub mod post_tool_failure;
+pub mod pre_tool;
 pub mod stop;
 
 /// DB 경로를 결정한다.

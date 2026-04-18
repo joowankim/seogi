@@ -66,6 +66,8 @@ enum HookAction {
     Notification,
     /// 세션 종료 이벤트 기록 (`Stop`)
     Stop,
+    /// 도구 호출 시작 시간 기록 (`PreToolUse`)
+    PreTool,
 }
 
 fn main() -> Result<()> {
@@ -103,6 +105,9 @@ fn main() -> Result<()> {
             }
             HookAction::Stop => {
                 seogi::entrypoint::hooks::stop::run()?;
+            }
+            HookAction::PreTool => {
+                seogi::entrypoint::hooks::pre_tool::run()?;
             }
         },
     }
