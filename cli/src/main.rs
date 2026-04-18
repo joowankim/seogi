@@ -163,6 +163,13 @@ enum TaskAction {
         #[arg(long)]
         label: Option<String>,
     },
+    /// 태스크 상태 전환
+    Move {
+        /// 태스크 ID (e.g., SEO-1)
+        task_id: String,
+        /// 이동할 상태 이름 (e.g., `in_progress`, `done`)
+        status: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -300,6 +307,9 @@ fn main() -> Result<()> {
                         description.as_deref(),
                         label.as_deref(),
                     )?;
+                }
+                TaskAction::Move { task_id, status } => {
+                    seogi::entrypoint::task::move_task(&conn, &task_id, &status)?;
                 }
             }
         }

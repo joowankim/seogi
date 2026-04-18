@@ -46,6 +46,18 @@ pub fn find_by_category(conn: &Connection, category: &str) -> rusqlite::Result<O
     rows.next().transpose()
 }
 
+/// 이름으로 Status를 조회한다.
+///
+/// # Errors
+///
+/// SELECT 실패 시 `rusqlite::Error`.
+pub fn find_by_name(conn: &Connection, name: &str) -> rusqlite::Result<Option<Status>> {
+    let mut stmt =
+        conn.prepare("SELECT id, name, category, position FROM statuses WHERE name = ?1")?;
+    let mut rows = stmt.query_map([name], status_from_row)?;
+    rows.next().transpose()
+}
+
 /// id로 Status를 조회한다.
 ///
 /// # Errors
@@ -183,7 +195,23 @@ mod tests {
         assert!(not_found.is_none());
     }
 
-    // Q11: max_position
+    // Q11: find_by_name 존재 → Some
+    #[test]
+    fn test_find_by_name_found() {
+        let conn = initialize_in_memory().unwrap();
+        let found = find_by_name(&conn, "backlog").unwrap();
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().category(), StatusCategory::Backlog);
+    }
+
+    // Q12: find_by_name 미존재 → None
+    #[test]
+    fn test_find_by_name_not_found() {
+        let conn = initialize_in_memory().unwrap();
+        assert!(find_by_name(&conn, "nonexistent").unwrap().is_none());
+    }
+
+    // max_position
     #[test]
     fn test_max_position() {
         let conn = initialize_in_memory().unwrap();

@@ -463,3 +463,93 @@ fn test_task_update_combined() {
     assert_eq!(title, "새 제목");
     assert_eq!(label, "bug");
 }
+
+// Q19: task move 성공 (backlog → todo = Backlog→Unstarted)
+#[test]
+fn test_task_move_success() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    create_project(db);
+    create_task(db, "태스크", "feature");
+
+    let output = run_seogi(&["task", "move", "SEO-1", "todo"], db);
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("SEO-1"), "stdout: {stdout}");
+    assert!(stdout.contains("todo"), "stdout: {stdout}");
+
+    // DB 검증: status_id 변경, task_events 2건 (create + move)
+    let conn = Connection::open(&db_path).unwrap();
+    let status_name: String = conn
+        .query_row(
+            "SELECT s.name FROM tasks t JOIN statuses s ON t.status_id = s.id WHERE t.id = 'SEO-1'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(status_name, "todo");
+
+    let event_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM task_events", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(event_count, 2); // create + move
+}
+
+// Q20: 존재하지 않는 태스크 → 에러
+#[test]
+fn test_task_move_task_not_found() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    create_project(db);
+
+    let output = run_seogi(&["task", "move", "SEO-99", "todo"], db);
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("SEO-99"), "stderr: {stderr}");
+}
+
+// Q21: 허용되지 않은 전환 (Backlog→Completed) → 에러, 허용 목록 표시
+#[test]
+fn test_task_move_invalid_transition() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    create_project(db);
+    create_task(db, "태스크", "feature");
+
+    let output = run_seogi(&["task", "move", "SEO-1", "done"], db);
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    // 허용 가능한 전환 목록이 에러에 포함
+    assert!(
+        stderr.contains("unstarted") || stderr.contains("Unstarted"),
+        "허용 목록 포함: {stderr}"
+    );
+}
+
+// Q22: 같은 상태로 전환 → 에러
+#[test]
+fn test_task_move_same_status() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    create_project(db);
+    create_task(db, "태스크", "feature");
+
+    let output = run_seogi(&["task", "move", "SEO-1", "backlog"], db);
+
+    assert!(!output.status.success());
+}

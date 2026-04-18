@@ -24,6 +24,29 @@ impl StatusCategory {
             Self::Canceled => "canceled",
         }
     }
+
+    /// 이 카테고리에서 전환 가능한 카테고리 목록을 반환한다.
+    #[must_use]
+    pub fn allowed_transitions(self) -> &'static [Self] {
+        match self {
+            Self::Backlog => &[Self::Unstarted, Self::Canceled],
+            Self::Unstarted => &[Self::Started, Self::Backlog, Self::Canceled],
+            Self::Started => &[Self::Unstarted, Self::Completed, Self::Canceled],
+            Self::Completed => &[Self::Started],
+            Self::Canceled => &[Self::Backlog],
+        }
+    }
+
+    /// 이 카테고리에서 대상 카테고리로 전환 가능한지 확인한다.
+    ///
+    /// 같은 카테고리 내 전환은 항상 허용.
+    #[must_use]
+    pub fn can_transition_to(self, to: Self) -> bool {
+        if self == to {
+            return true;
+        }
+        self.allowed_transitions().contains(&to)
+    }
 }
 
 impl fmt::Display for StatusCategory {
@@ -193,5 +216,55 @@ mod tests {
     #[test]
     fn test_status_new_empty_name() {
         assert!(Status::new("", StatusCategory::Started, 0).is_err());
+    }
+
+    // FSM Q1: Backlog→Unstarted 허용
+    #[test]
+    fn test_can_transition_backlog_to_unstarted() {
+        assert!(StatusCategory::Backlog.can_transition_to(StatusCategory::Unstarted));
+    }
+
+    // FSM Q2: Backlog→Completed 거부
+    #[test]
+    fn test_can_transition_backlog_to_completed() {
+        assert!(!StatusCategory::Backlog.can_transition_to(StatusCategory::Completed));
+    }
+
+    // FSM Q3: Completed→Started 허용 (rework)
+    #[test]
+    fn test_can_transition_completed_to_started() {
+        assert!(StatusCategory::Completed.can_transition_to(StatusCategory::Started));
+    }
+
+    // FSM Q4: Canceled→Backlog 허용 (복구)
+    #[test]
+    fn test_can_transition_canceled_to_backlog() {
+        assert!(StatusCategory::Canceled.can_transition_to(StatusCategory::Backlog));
+    }
+
+    // FSM Q5: 같은 카테고리 허용
+    #[test]
+    fn test_can_transition_same_category() {
+        assert!(StatusCategory::Started.can_transition_to(StatusCategory::Started));
+        assert!(StatusCategory::Backlog.can_transition_to(StatusCategory::Backlog));
+    }
+
+    // FSM Q6: Backlog 허용 전환 목록
+    #[test]
+    fn test_allowed_transitions_backlog() {
+        let allowed = StatusCategory::Backlog.allowed_transitions();
+        assert_eq!(allowed.len(), 2);
+        assert!(allowed.contains(&StatusCategory::Unstarted));
+        assert!(allowed.contains(&StatusCategory::Canceled));
+    }
+
+    // FSM Q7: Started 허용 전환 목록
+    #[test]
+    fn test_allowed_transitions_started() {
+        let allowed = StatusCategory::Started.allowed_transitions();
+        assert_eq!(allowed.len(), 3);
+        assert!(allowed.contains(&StatusCategory::Unstarted));
+        assert!(allowed.contains(&StatusCategory::Completed));
+        assert!(allowed.contains(&StatusCategory::Canceled));
     }
 }

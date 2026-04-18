@@ -85,6 +85,47 @@ pub fn list_all(conn: &Connection, filter: &TaskFilter<'_>) -> rusqlite::Result<
     rows.collect()
 }
 
+/// 태스크의 `id`와 `status_id`를 반환하는 조회 결과.
+#[derive(Debug)]
+pub struct TaskRow {
+    pub id: String,
+    pub status_id: String,
+}
+
+/// id로 태스크를 조회한다.
+///
+/// # Errors
+///
+/// SELECT 실패 시 `rusqlite::Error`.
+pub fn find_by_id(conn: &Connection, id: &str) -> rusqlite::Result<Option<TaskRow>> {
+    let mut stmt = conn.prepare("SELECT id, status_id FROM tasks WHERE id = ?1")?;
+    let mut rows = stmt.query_map([id], |row| {
+        Ok(TaskRow {
+            id: row.get("id")?,
+            status_id: row.get("status_id")?,
+        })
+    })?;
+    rows.next().transpose()
+}
+
+/// 태스크의 `status_id`와 `updated_at`을 변경한다. 변경된 행이 있으면 true.
+///
+/// # Errors
+///
+/// UPDATE 실패 시 `rusqlite::Error`.
+pub fn update_status(
+    conn: &Connection,
+    id: &str,
+    status_id: &str,
+    updated_at: &DateTime<Utc>,
+) -> rusqlite::Result<bool> {
+    let changed = conn.execute(
+        "UPDATE tasks SET status_id = ?1, updated_at = ?2 WHERE id = ?3",
+        (status_id, updated_at.to_rfc3339(), id),
+    )?;
+    Ok(changed > 0)
+}
+
 /// 태스크 업데이트 파라미터.
 pub struct TaskUpdate<'a> {
     pub title: Option<&'a str>,
@@ -421,5 +462,44 @@ mod tests {
         };
         let changed = update(&conn, "SEO-99", &params, &chrono::Utc::now()).unwrap();
         assert!(!changed);
+    }
+
+    // Q8: find_by_id 존재 → Some
+    #[test]
+    fn test_task_repo_find_by_id_found() {
+        let (conn, project_id, status_id) = setup();
+        let task = sample_task("SEO", 1, &status_id, &project_id);
+        save(&conn, &task).unwrap();
+
+        let found = find_by_id(&conn, "SEO-1").unwrap();
+        assert!(found.is_some());
+        let row = found.unwrap();
+        assert_eq!(row.id, "SEO-1");
+        assert_eq!(row.status_id, status_id);
+    }
+
+    // Q9: find_by_id 미존재 → None
+    #[test]
+    fn test_task_repo_find_by_id_not_found() {
+        let (conn, _, _) = setup();
+        assert!(find_by_id(&conn, "SEO-99").unwrap().is_none());
+    }
+
+    // Q10: update_status 성공
+    #[test]
+    fn test_task_repo_update_status() {
+        let (conn, project_id, status_id) = setup();
+        let task = sample_task("SEO", 1, &status_id, &project_id);
+        save(&conn, &task).unwrap();
+
+        // todo 상태 찾기
+        let statuses = status_repo::list_all(&conn).unwrap();
+        let todo = statuses.iter().find(|s| s.name() == "todo").unwrap();
+
+        let changed = update_status(&conn, "SEO-1", todo.id(), &chrono::Utc::now()).unwrap();
+        assert!(changed);
+
+        let row = find_by_id(&conn, "SEO-1").unwrap().unwrap();
+        assert_eq!(row.status_id, todo.id());
     }
 }

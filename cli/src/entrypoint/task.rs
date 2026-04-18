@@ -70,3 +70,15 @@ pub fn update(
     println!("Updated task {task_id}");
     Ok(())
 }
+
+/// `seogi task move` 핸들러.
+///
+/// # Errors
+///
+/// 태스크/상태 미존재, FSM 위반, 같은 상태, DB 에러 시 `anyhow::Error`.
+pub fn move_task(conn: &Connection, task_id: &str, status: &str) -> Result<()> {
+    let (from, to) =
+        workflow::task::move_task(conn, task_id, status).map_err(|e| anyhow::anyhow!("{e}"))?;
+    println!("Moved task {task_id}: {from} → {to}");
+    Ok(())
+}
