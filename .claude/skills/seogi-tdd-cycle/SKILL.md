@@ -41,7 +41,9 @@ description: seogi 프로젝트의 TDD 구현 워크플로우. 기획 승인 완
    ↓
 4. 리팩토링 (녹색 유지)
    ↓
-5. Feature 완료 커밋
+5. /seogi-code-review 실행 → MUST FIX 항목 수정
+   ↓
+6. Feature 완료 커밋
 ```
 
 ## 1. E2E 테스트 선작성 (RED)
@@ -143,7 +145,14 @@ COMMIT   → 전체 테스트 녹색일 때만 safe point
 - 깨지면 즉시 revert
 - 새 기능 추가 금지 (리팩토링과 기능 추가 분리)
 
-## 5. Feature 완료 커밋
+## 5. 코드 리뷰
+
+커밋 전에 `/seogi-code-review` 스킬을 실행한다.
+
+- MUST FIX 항목이 있으면 수정 후 재실행
+- 모든 MUST FIX 해소 후 커밋 진행
+
+## 6. Feature 완료 커밋
 
 ```
 feat(XX): <요약>
@@ -184,6 +193,7 @@ feat(XX): <요약>
 **완료 시:**
 - [ ] 모든 E2E 녹색
 - [ ] 브랜치 커버리지 100%
+- [ ] `/seogi-code-review` MUST FIX 없음
 - [ ] 커밋 메시지에 QA 목록 명시
 
 ## 자주 실수하는 것

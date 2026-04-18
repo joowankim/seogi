@@ -21,7 +21,9 @@ description: seogi 프로젝트의 기능 기획 워크플로우. 새 기능을 
    ↓
 3. Test Pyramid 설계
    ↓
-4. 사용자 검토 및 승인
+4. /seogi-planning-review 실행 → FAIL 항목 수정
+   ↓
+5. 사용자 검토 및 승인
    ↓
 [TDD 사이클로 진입] → seogi-tdd-cycle 스킬
 ```
@@ -108,9 +110,16 @@ ground-truth.md의 두 가지 목적 중 어느 쪽에 기여하는지 명시.
 | duration 계산 | 단위 | 순수 계산 |
 | 잘못된 JSON 처리 | E2E | 바이너리 에러 처리 |
 
-## 4. 사용자 승인
+## 4. 기획 리뷰
 
-기획 완료 후 사용자에게 검토 요청:
+기획 문서 작성 후, 사용자에게 제출하기 전에 `/seogi-planning-review` 스킬을 실행한다.
+
+- FAIL 항목이 있으면 수정 후 재실행
+- 모든 항목 PASS 후 사용자에게 검토 요청
+
+## 5. 사용자 승인
+
+리뷰 통과 후 사용자에게 검토 요청:
 
 - 목적이 ground-truth에 부합?
 - QA 목록이 충분히 커버?
@@ -126,6 +135,7 @@ ground-truth.md의 두 가지 목적 중 어느 쪽에 기여하는지 명시.
 - [ ] QA 목록의 각 항목이 테스트 가능한 명제
 - [ ] Test Pyramid 분배표 작성
 - [ ] 의존 Feature 순서 명확
+- [ ] `/seogi-planning-review` 통과
 - [ ] 사용자 승인 완료
 
 모두 충족 시 `seogi-tdd-cycle` 스킬로 넘어간다.
