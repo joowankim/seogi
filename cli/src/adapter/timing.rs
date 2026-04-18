@@ -102,24 +102,6 @@ mod tests {
         assert!(file.exists());
     }
 
-    #[test]
-    fn test_timing_dir_uses_env_var() {
-        unsafe {
-            std::env::set_var("SEOGI_TIMING_DIR", "/tmp/custom-timing");
-        }
-        let dir = timing_dir();
-        unsafe {
-            std::env::remove_var("SEOGI_TIMING_DIR");
-        }
-        assert_eq!(dir, PathBuf::from("/tmp/custom-timing"));
-    }
-
-    #[test]
-    fn test_timing_dir_fallback() {
-        unsafe {
-            std::env::remove_var("SEOGI_TIMING_DIR");
-        }
-        let dir = timing_dir();
-        assert!(dir.to_str().unwrap().ends_with("/seogi"));
-    }
+    // timing_dir()의 환경변수 분기는 E2E 테스트에서 커버됨
+    // (SEOGI_TIMING_DIR 설정: feature_05_test, 미설정: 기본값 fallback)
 }
