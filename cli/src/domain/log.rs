@@ -1,5 +1,7 @@
 use std::fmt;
 
+use super::value::{Ms, SessionId, Timestamp};
+
 /// 도구 사용 기록.
 ///
 /// Claude Code `PostToolUse` 훅에서 수집된 도구 호출 정보를 표현한다.
@@ -7,13 +9,13 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ToolUse {
     id: String,
-    session_id: String,
+    session_id: SessionId,
     project: String,
     project_path: String,
     tool_name: String,
     tool_input: String,
-    duration_ms: i64,
-    timestamp: i64,
+    duration: Ms,
+    timestamp: Timestamp,
 }
 
 impl ToolUse {
@@ -21,13 +23,13 @@ impl ToolUse {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: String,
-        session_id: String,
+        session_id: SessionId,
         project: String,
         project_path: String,
         tool_name: String,
         tool_input: String,
-        duration_ms: i64,
-        timestamp: i64,
+        duration: Ms,
+        timestamp: Timestamp,
     ) -> Self {
         Self {
             id,
@@ -36,7 +38,7 @@ impl ToolUse {
             project_path,
             tool_name,
             tool_input,
-            duration_ms,
+            duration,
             timestamp,
         }
     }
@@ -47,7 +49,7 @@ impl ToolUse {
     }
 
     #[must_use]
-    pub fn session_id(&self) -> &str {
+    pub fn session_id(&self) -> &SessionId {
         &self.session_id
     }
 
@@ -72,12 +74,12 @@ impl ToolUse {
     }
 
     #[must_use]
-    pub fn duration_ms(&self) -> i64 {
-        self.duration_ms
+    pub fn duration(&self) -> Ms {
+        self.duration
     }
 
     #[must_use]
-    pub fn timestamp(&self) -> i64 {
+    pub fn timestamp(&self) -> Timestamp {
         self.timestamp
     }
 }
@@ -95,12 +97,12 @@ impl fmt::Display for ToolUse {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ToolFailure {
     id: String,
-    session_id: String,
+    session_id: SessionId,
     project: String,
     project_path: String,
     tool_name: String,
     error: String,
-    timestamp: i64,
+    timestamp: Timestamp,
 }
 
 impl ToolFailure {
@@ -108,12 +110,12 @@ impl ToolFailure {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: String,
-        session_id: String,
+        session_id: SessionId,
         project: String,
         project_path: String,
         tool_name: String,
         error: String,
-        timestamp: i64,
+        timestamp: Timestamp,
     ) -> Self {
         Self {
             id,
@@ -132,7 +134,7 @@ impl ToolFailure {
     }
 
     #[must_use]
-    pub fn session_id(&self) -> &str {
+    pub fn session_id(&self) -> &SessionId {
         &self.session_id
     }
 
@@ -157,7 +159,7 @@ impl ToolFailure {
     }
 
     #[must_use]
-    pub fn timestamp(&self) -> i64 {
+    pub fn timestamp(&self) -> Timestamp {
         self.timestamp
     }
 }
@@ -179,12 +181,12 @@ impl fmt::Display for ToolFailure {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SystemEvent {
     id: String,
-    session_id: String,
+    session_id: SessionId,
     project: String,
     project_path: String,
     event_type: String,
     content: String,
-    timestamp: i64,
+    timestamp: Timestamp,
 }
 
 impl SystemEvent {
@@ -192,12 +194,12 @@ impl SystemEvent {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: String,
-        session_id: String,
+        session_id: SessionId,
         project: String,
         project_path: String,
         event_type: String,
         content: String,
-        timestamp: i64,
+        timestamp: Timestamp,
     ) -> Self {
         Self {
             id,
@@ -216,7 +218,7 @@ impl SystemEvent {
     }
 
     #[must_use]
-    pub fn session_id(&self) -> &str {
+    pub fn session_id(&self) -> &SessionId {
         &self.session_id
     }
 
@@ -241,7 +243,7 @@ impl SystemEvent {
     }
 
     #[must_use]
-    pub fn timestamp(&self) -> i64 {
+    pub fn timestamp(&self) -> Timestamp {
         self.timestamp
     }
 }
@@ -270,13 +272,13 @@ mod tests {
     fn sample_tool_use() -> ToolUse {
         ToolUse::new(
             "abc123".to_string(),
-            "sess-1".to_string(),
+            SessionId::new("sess-1"),
             "seogi".to_string(),
             "/Users/kim/projects/seogi".to_string(),
             "Bash".to_string(),
             r#"{"command":"ls"}"#.to_string(),
-            0,
-            1_713_000_000_000,
+            Ms::zero(),
+            Timestamp::new(1_713_000_000_000),
         )
     }
 
@@ -285,15 +287,14 @@ mod tests {
         let tu = sample_tool_use();
 
         assert_eq!(tu.id(), "abc123");
-        assert_eq!(tu.session_id(), "sess-1");
+        assert_eq!(tu.session_id().as_str(), "sess-1");
         assert_eq!(tu.project(), "seogi");
         assert_eq!(tu.project_path(), "/Users/kim/projects/seogi");
         assert_eq!(tu.tool_name(), "Bash");
         assert_eq!(tu.tool_input(), r#"{"command":"ls"}"#);
-        assert_eq!(tu.duration_ms(), 0);
-        assert_eq!(tu.timestamp(), 1_713_000_000_000);
+        assert_eq!(tu.duration(), Ms::zero());
+        assert_eq!(tu.timestamp(), Timestamp::new(1_713_000_000_000));
 
-        // Clone + PartialEq
         assert_eq!(tu.clone(), tu);
     }
 
@@ -320,12 +321,12 @@ mod tests {
     fn sample_tool_failure() -> ToolFailure {
         ToolFailure::new(
             "fail123".to_string(),
-            "sess-1".to_string(),
+            SessionId::new("sess-1"),
             "seogi".to_string(),
             "/Users/kim/projects/seogi".to_string(),
             "Bash".to_string(),
             "Permission denied".to_string(),
-            1_713_000_000_000,
+            Timestamp::new(1_713_000_000_000),
         )
     }
 
@@ -334,14 +335,13 @@ mod tests {
         let tf = sample_tool_failure();
 
         assert_eq!(tf.id(), "fail123");
-        assert_eq!(tf.session_id(), "sess-1");
+        assert_eq!(tf.session_id().as_str(), "sess-1");
         assert_eq!(tf.project(), "seogi");
         assert_eq!(tf.project_path(), "/Users/kim/projects/seogi");
         assert_eq!(tf.tool_name(), "Bash");
         assert_eq!(tf.error(), "Permission denied");
-        assert_eq!(tf.timestamp(), 1_713_000_000_000);
+        assert_eq!(tf.timestamp(), Timestamp::new(1_713_000_000_000));
 
-        // Clone + PartialEq
         assert_eq!(tf.clone(), tf);
     }
 
@@ -354,12 +354,12 @@ mod tests {
     fn sample_system_event() -> SystemEvent {
         SystemEvent::new(
             "evt123".to_string(),
-            "sess-1".to_string(),
+            SessionId::new("sess-1"),
             "seogi".to_string(),
             "/Users/kim/projects/seogi".to_string(),
             "Notification".to_string(),
             "Permission required".to_string(),
-            1_713_000_000_000,
+            Timestamp::new(1_713_000_000_000),
         )
     }
 
@@ -368,14 +368,13 @@ mod tests {
         let se = sample_system_event();
 
         assert_eq!(se.id(), "evt123");
-        assert_eq!(se.session_id(), "sess-1");
+        assert_eq!(se.session_id().as_str(), "sess-1");
         assert_eq!(se.project(), "seogi");
         assert_eq!(se.project_path(), "/Users/kim/projects/seogi");
         assert_eq!(se.event_type(), "Notification");
         assert_eq!(se.content(), "Permission required");
-        assert_eq!(se.timestamp(), 1_713_000_000_000);
+        assert_eq!(se.timestamp(), Timestamp::new(1_713_000_000_000));
 
-        // Clone + PartialEq
         assert_eq!(se.clone(), se);
     }
 

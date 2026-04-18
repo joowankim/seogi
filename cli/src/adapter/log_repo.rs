@@ -14,13 +14,13 @@ pub fn save_tool_use(conn: &Connection, tool_use: &ToolUse) -> Result<(), Adapte
         "INSERT INTO tool_uses (id, session_id, project, project_path, tool_name, tool_input, duration_ms, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         (
             tool_use.id(),
-            tool_use.session_id(),
+            tool_use.session_id().as_str(),
             tool_use.project(),
             tool_use.project_path(),
             tool_use.tool_name(),
             tool_use.tool_input(),
-            tool_use.duration_ms(),
-            tool_use.timestamp(),
+            tool_use.duration().value(),
+            tool_use.timestamp().value(),
         ),
     )?;
     Ok(())
@@ -56,12 +56,12 @@ pub fn save_tool_failure(
         "INSERT INTO tool_failures (id, session_id, project, project_path, tool_name, error, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         (
             tool_failure.id(),
-            tool_failure.session_id(),
+            tool_failure.session_id().as_str(),
             tool_failure.project(),
             tool_failure.project_path(),
             tool_failure.tool_name(),
             tool_failure.error(),
-            tool_failure.timestamp(),
+            tool_failure.timestamp().value(),
         ),
     )?;
     Ok(())
@@ -97,12 +97,12 @@ pub fn save_system_event(conn: &Connection, event: &SystemEvent) -> Result<(), A
         "INSERT INTO system_events (id, session_id, project, project_path, event_type, content, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         (
             event.id(),
-            event.session_id(),
+            event.session_id().as_str(),
             event.project(),
             event.project_path(),
             event.event_type(),
             event.content(),
-            event.timestamp(),
+            event.timestamp().value(),
         ),
     )?;
     Ok(())
@@ -132,17 +132,18 @@ pub fn list_system_events_by_session(
 mod tests {
     use super::*;
     use crate::adapter::db;
+    use crate::domain::value::{Ms, SessionId, Timestamp};
 
     fn sample_tool_use() -> ToolUse {
         ToolUse::new(
             "abcdef1234567890abcdef1234567890".to_string(),
-            "sess-1".to_string(),
+            SessionId::new("sess-1"),
             "seogi".to_string(),
             "/Users/kim/projects/seogi".to_string(),
             "Bash".to_string(),
             r#"{"command":"ls -la"}"#.to_string(),
-            0,
-            1_713_000_000_000,
+            Ms::zero(),
+            Timestamp::new(1_713_000_000_000),
         )
     }
 
@@ -196,12 +197,12 @@ mod tests {
     fn sample_tool_failure() -> ToolFailure {
         ToolFailure::new(
             "abcdef1234567890abcdef1234567890".to_string(),
-            "sess-1".to_string(),
+            SessionId::new("sess-1"),
             "seogi".to_string(),
             "/Users/kim/projects/seogi".to_string(),
             "Bash".to_string(),
             "Permission denied".to_string(),
-            1_713_000_000_000,
+            Timestamp::new(1_713_000_000_000),
         )
     }
 
@@ -254,12 +255,12 @@ mod tests {
     fn sample_system_event() -> SystemEvent {
         SystemEvent::new(
             "abcdef1234567890abcdef1234567890".to_string(),
-            "sess-1".to_string(),
+            SessionId::new("sess-1"),
             "seogi".to_string(),
             "/Users/kim/projects/seogi".to_string(),
             "Notification".to_string(),
             "Permission required".to_string(),
-            1_713_000_000_000,
+            Timestamp::new(1_713_000_000_000),
         )
     }
 
