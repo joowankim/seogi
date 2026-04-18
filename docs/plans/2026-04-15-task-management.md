@@ -53,22 +53,19 @@ domain 계층 (순수 타입 + 순수 함수) + adapter 계층 (SQLite, 파일 I
 CREATE TABLE projects (
     id          TEXT PRIMARY KEY,
     name        TEXT NOT NULL,
-    prefix      TEXT NOT NULL UNIQUE,  -- "SEO", "LOC" 등 (태스크 id 접두사)
+    prefix      TEXT NOT NULL UNIQUE,  -- "SEO", "LOC" 등 (대문자 알파벳 3글자, 태스크 id 접두사)
     goal        TEXT NOT NULL,
+    next_seq    INTEGER NOT NULL,     -- 다음 태스크 시퀀스 번호 (도메인에서 초기값 1 설정)
     created_at  INTEGER NOT NULL,
     updated_at  INTEGER NOT NULL
 );
 
-CREATE TABLE status_categories (
-    id          TEXT PRIMARY KEY,
-    name        TEXT NOT NULL,
-    position    INTEGER NOT NULL
-);
+-- status_categories는 DB 테이블이 아닌 코드 enum (StatusCategory)으로 관리
 
 CREATE TABLE statuses (
     id          TEXT PRIMARY KEY,
     name        TEXT NOT NULL,
-    category_id TEXT NOT NULL REFERENCES status_categories(id),
+    category    TEXT NOT NULL,      -- StatusCategory enum 값 (backlog, unstarted, started, completed, canceled)
     position    INTEGER NOT NULL
 );
 
@@ -148,7 +145,7 @@ CREATE TABLE session_metrics (
 - DEFAULT 값은 DB가 아닌 애플리케이션 레이어에서 처리
 - id는 UUID v4 hex 형식 (단, 태스크 id는 `{prefix}-{sequence}` 형식)
 - 모든 timestamp는 밀리초 Unix timestamp INTEGER
-- `task_events.session_id`는 NOT NULL — CLI에서 생성 시 `"cli"` 값 사용
+- `task_events.session_id`는 NOT NULL — CLI에서 생성 시 도메인 상수 `CLI_SESSION_ID` 사용
 - `task_events.from_status`는 nullable — 최초 생성 시 이전 상태 없음
 - 세션 로그는 종류별 테이블 분리 (tool_uses, tool_failures, system_events) — nullable 최소화
 
@@ -189,8 +186,11 @@ CREATE TABLE session_metrics (
 | Started | Canceled | 작업 중 취소 |
 | Started | Unstarted | 작업 보류 |
 | Completed | Started | 재작업 (rework) |
+| Canceled | Backlog | 취소 복구 |
 
 같은 카테고리 내 커스텀 상태 간에는 자유 전환. 메트릭에 영향 없음.
+
+> 카테고리는 DB 테이블이 아닌 코드 enum (`StatusCategory`)으로 관리. 5개 고정이므로 타입 시스템으로 보장.
 
 ---
 
@@ -225,18 +225,18 @@ seogi project list
 ### 태스크
 
 ```
-seogi task create --project <id> --title "..." --description "..." --label feature
-seogi task list [--project <id>] [--status <status>] [--label <label>]
+seogi task create --project <name> --title "..." --description "..." --label feature
+seogi task list [--project <name>] [--status <status>] [--label <label>]
 seogi task update <task_id> [--title "..."] [--description "..."] [--label <label>]
 seogi task move <task_id> <status>
-seogi task start <task_id>    # 단축: move <id> in_progress
-seogi task done <task_id>     # 단축: move <id> done
 ```
 
 ### 상태
 
 ```
 seogi status create --category <category> --name "..."
+seogi status update <id> --name "..."
+seogi status delete <id>
 seogi status list
 ```
 
@@ -276,8 +276,8 @@ seogi mcp-server
 
 MCP 도구:
 - `project_create`, `project_list`
-- `task_create`, `task_list`, `task_update`, `task_move`, `task_start`, `task_done`
-- `status_create`, `status_list`
+- `task_create`, `task_list`, `task_update`, `task_move`
+- `status_create`, `status_update`, `status_delete`, `status_list`
 
 ---
 
