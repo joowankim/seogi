@@ -56,8 +56,8 @@ CREATE TABLE projects (
     prefix      TEXT NOT NULL UNIQUE,  -- "SEO", "LOC" 등 (대문자 알파벳 3글자, 태스크 id 접두사)
     goal        TEXT NOT NULL,
     next_seq    INTEGER NOT NULL,     -- 다음 태스크 시퀀스 번호 (도메인에서 초기값 1 설정)
-    created_at  INTEGER NOT NULL,
-    updated_at  INTEGER NOT NULL
+    created_at  TEXT NOT NULL,       -- ISO 8601
+    updated_at  TEXT NOT NULL        -- ISO 8601
 );
 
 -- status_categories는 DB 테이블이 아닌 코드 enum (StatusCategory)으로 관리
@@ -76,8 +76,8 @@ CREATE TABLE tasks (
     label       TEXT NOT NULL,       -- feature, bug, refactor, chore, docs
     status_id   TEXT NOT NULL REFERENCES statuses(id),
     project_id  TEXT NOT NULL REFERENCES projects(id),
-    created_at  INTEGER NOT NULL,
-    updated_at  INTEGER NOT NULL
+    created_at  TEXT NOT NULL,       -- ISO 8601
+    updated_at  TEXT NOT NULL        -- ISO 8601
 );
 
 CREATE TABLE task_events (
@@ -144,7 +144,8 @@ CREATE TABLE session_metrics (
 
 - DEFAULT 값은 DB가 아닌 애플리케이션 레이어에서 처리
 - id는 UUID v4 hex 형식 (단, 태스크 id는 `{prefix}-{sequence}` 형식)
-- 모든 timestamp는 밀리초 Unix timestamp INTEGER
+- 이벤트/로그의 `timestamp`는 밀리초 Unix timestamp INTEGER
+- 엔티티의 `created_at`/`updated_at`은 ISO 8601 TEXT (관습적 구분)
 - `task_events.session_id`는 NOT NULL — CLI에서 생성 시 도메인 상수 `CLI_SESSION_ID` 사용
 - `task_events.from_status`는 nullable — 최초 생성 시 이전 상태 없음
 - 세션 로그는 종류별 테이블 분리 (tool_uses, tool_failures, system_events) — nullable 최소화

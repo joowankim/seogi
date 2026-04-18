@@ -8,8 +8,9 @@ use super::error::AdapterError;
 const SCHEMA_SQL: &str = include_str!("sql/schema.sql");
 const SEED_SQL: &str = include_str!("sql/seed.sql");
 const MIGRATION_V2_TO_V3: &str = include_str!("sql/migration_v2_to_v3.sql");
+const MIGRATION_V3_TO_V4: &str = include_str!("sql/migration_v3_to_v4.sql");
 
-const SCHEMA_VERSION: i64 = 3;
+const SCHEMA_VERSION: i64 = 4;
 
 fn apply_schema(conn: &Connection) -> Result<(), AdapterError> {
     conn.execute_batch(SCHEMA_SQL)?;
@@ -30,6 +31,9 @@ fn setup_connection(conn: Connection) -> Result<Connection, AdapterError> {
     if version < SCHEMA_VERSION {
         if version > 0 && version < 3 {
             migrate_v2_to_v3(&conn)?;
+        }
+        if version == 3 {
+            conn.execute_batch(MIGRATION_V3_TO_V4)?;
         }
         apply_schema(&conn)?;
         conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
@@ -145,8 +149,8 @@ mod tests {
                 ("prefix", "TEXT", true),
                 ("goal", "TEXT", true),
                 ("next_seq", "INTEGER", true),
-                ("created_at", "INTEGER", true),
-                ("updated_at", "INTEGER", true),
+                ("created_at", "TEXT", true),
+                ("updated_at", "TEXT", true),
             ],
         );
     }
@@ -179,8 +183,8 @@ mod tests {
                 ("label", "TEXT", true),
                 ("status_id", "TEXT", true),
                 ("project_id", "TEXT", true),
-                ("created_at", "INTEGER", true),
-                ("updated_at", "INTEGER", true),
+                ("created_at", "TEXT", true),
+                ("updated_at", "TEXT", true),
             ],
         );
     }
@@ -478,6 +482,45 @@ mod tests {
         // v3로 업그레이드
         let conn = setup_connection(conn).unwrap();
 
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tool_uses", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_migration_v3_to_v4_changes_timestamp_columns() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+
+        // v3 스키마 시뮬레이션: created_at/updated_at이 INTEGER인 projects 테이블
+        conn.execute_batch(
+            "CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, prefix TEXT NOT NULL UNIQUE, goal TEXT NOT NULL, next_seq INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+             CREATE TABLE tool_uses (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, project TEXT NOT NULL, project_path TEXT NOT NULL, tool_name TEXT NOT NULL, tool_input TEXT NOT NULL, duration_ms INTEGER NOT NULL, timestamp INTEGER NOT NULL);",
+        )
+        .unwrap();
+        insert_test_tool_use(&conn);
+        conn.pragma_update(None, "user_version", 3).unwrap();
+
+        // v4로 업그레이드
+        let conn = setup_connection(conn).unwrap();
+
+        // projects.created_at이 TEXT로 변경됨
+        assert_table_columns(
+            &conn,
+            "projects",
+            &[
+                ("id", "TEXT", false),
+                ("name", "TEXT", true),
+                ("prefix", "TEXT", true),
+                ("goal", "TEXT", true),
+                ("next_seq", "INTEGER", true),
+                ("created_at", "TEXT", true),
+                ("updated_at", "TEXT", true),
+            ],
+        );
+
+        // Phase 1 데이터 보존
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM tool_uses", [], |r| r.get(0))
             .unwrap();
