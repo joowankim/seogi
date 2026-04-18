@@ -117,23 +117,18 @@ fn main() -> Result<()> {
                 summary.tool_uses, summary.tool_failures, summary.skipped, summary.files
             );
         }
-        Commands::Hook { action } => match action {
-            HookAction::PostTool => {
-                seogi::entrypoint::hooks::post_tool::run()?;
+        Commands::Hook { action } => {
+            use seogi::entrypoint::hooks::{
+                notification, post_tool, post_tool_failure, pre_tool, run_safely, stop,
+            };
+            match action {
+                HookAction::PostTool => run_safely(post_tool::run),
+                HookAction::PostToolFailure => run_safely(post_tool_failure::run),
+                HookAction::Notification => run_safely(notification::run),
+                HookAction::Stop => run_safely(stop::run),
+                HookAction::PreTool => run_safely(pre_tool::run),
             }
-            HookAction::PostToolFailure => {
-                seogi::entrypoint::hooks::post_tool_failure::run()?;
-            }
-            HookAction::Notification => {
-                seogi::entrypoint::hooks::notification::run()?;
-            }
-            HookAction::Stop => {
-                seogi::entrypoint::hooks::stop::run()?;
-            }
-            HookAction::PreTool => {
-                seogi::entrypoint::hooks::pre_tool::run()?;
-            }
-        },
+        }
     }
 
     Ok(())

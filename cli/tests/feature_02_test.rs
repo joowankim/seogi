@@ -7,6 +7,7 @@ fn run_hook(db_path: &std::path::Path, stdin_data: &[u8]) -> std::process::Outpu
     let mut child = Command::new(env!("CARGO_BIN_EXE_seogi"))
         .args(["hook", "post-tool"])
         .env("SEOGI_DB_PATH", db_path)
+        .env("SEOGI_DIR", db_path.parent().unwrap())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -76,8 +77,7 @@ fn test_post_tool_hook_empty_stdin() {
 
     let output = run_hook(&db_path, b"");
 
-    assert!(!output.status.success());
-    assert!(!output.stderr.is_empty());
+    assert!(output.status.success(), "hooks should exit 0 even on error");
 }
 
 #[test]
@@ -87,8 +87,7 @@ fn test_post_tool_hook_invalid_json() {
 
     let output = run_hook(&db_path, b"{invalid}");
 
-    assert!(!output.status.success());
-    assert!(!output.stderr.is_empty());
+    assert!(output.status.success(), "hooks should exit 0 even on error");
 }
 
 #[test]
@@ -99,8 +98,7 @@ fn test_post_tool_hook_missing_session_id() {
 
     let output = run_hook(&db_path, input.as_bytes());
 
-    assert!(!output.status.success());
-    assert!(!output.stderr.is_empty());
+    assert!(output.status.success(), "hooks should exit 0 even on error");
 }
 
 #[test]
@@ -111,6 +109,5 @@ fn test_post_tool_hook_missing_tool_name() {
 
     let output = run_hook(&db_path, input.as_bytes());
 
-    assert!(!output.status.success());
-    assert!(!output.stderr.is_empty());
+    assert!(output.status.success(), "hooks should exit 0 even on error");
 }

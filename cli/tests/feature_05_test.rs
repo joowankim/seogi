@@ -175,12 +175,14 @@ fn test_pre_tool_hook_empty_stdin() {
 
     let output = run_hook(
         &["hook", "pre-tool"],
-        &[("SEOGI_TIMING_DIR", timing_dir.path().to_str().unwrap())],
+        &[
+            ("SEOGI_TIMING_DIR", timing_dir.path().to_str().unwrap()),
+            ("SEOGI_DIR", timing_dir.path().to_str().unwrap()),
+        ],
         b"",
     );
 
-    assert!(!output.status.success());
-    assert!(!output.stderr.is_empty());
+    assert!(output.status.success(), "hooks should exit 0 even on error");
 }
 
 #[test]
@@ -189,12 +191,14 @@ fn test_pre_tool_hook_invalid_json() {
 
     let output = run_hook(
         &["hook", "pre-tool"],
-        &[("SEOGI_TIMING_DIR", timing_dir.path().to_str().unwrap())],
+        &[
+            ("SEOGI_TIMING_DIR", timing_dir.path().to_str().unwrap()),
+            ("SEOGI_DIR", timing_dir.path().to_str().unwrap()),
+        ],
         b"{invalid}",
     );
 
-    assert!(!output.status.success());
-    assert!(!output.stderr.is_empty());
+    assert!(output.status.success(), "hooks should exit 0 even on error");
 }
 
 #[test]
@@ -204,10 +208,12 @@ fn test_pre_tool_hook_missing_tool_use_id() {
 
     let output = run_hook(
         &["hook", "pre-tool"],
-        &[("SEOGI_TIMING_DIR", timing_dir.path().to_str().unwrap())],
+        &[
+            ("SEOGI_TIMING_DIR", timing_dir.path().to_str().unwrap()),
+            ("SEOGI_DIR", timing_dir.path().to_str().unwrap()),
+        ],
         input.as_bytes(),
     );
 
-    assert!(!output.status.success());
-    assert!(!output.stderr.is_empty());
+    assert!(output.status.success(), "hooks should exit 0 even on error");
 }

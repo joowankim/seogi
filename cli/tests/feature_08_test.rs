@@ -15,6 +15,12 @@ fn run_hook(db_path: &str, hook: &str, stdin_data: &[u8]) -> std::process::Outpu
     let mut child = Command::new(env!("CARGO_BIN_EXE_seogi"))
         .args(["hook", hook])
         .env("SEOGI_DB_PATH", db_path)
+        .env(
+            "SEOGI_DIR",
+            std::path::Path::new(db_path)
+                .parent()
+                .unwrap_or(std::path::Path::new("/tmp")),
+        )
         .env("SEOGI_TIMING_DIR", "/tmp/seogi-test-timing-report")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
