@@ -11,6 +11,7 @@ description: seogi 프로젝트의 기능 기획 워크플로우. 새 기능을 
 
 **기획은 구현 전 완료해야 하는 독립 단계**.
 **사용자 승인 없이 구현에 들어가지 말 것**.
+**Feature 문서 작성 시 `docs/glossary.md`의 표준 용어를 사용할 것**. glossary에 없는 새 도메인 용어가 등장하면 `/manage-glossary`로 먼저 등록 후 사용.
 
 ## 절차
 

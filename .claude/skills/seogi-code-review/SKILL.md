@@ -11,7 +11,8 @@ agent: general-purpose
 
 ## 리뷰 전 준비
 
-1. `docs/conventions.md`를 **전체** 읽는다 — 이것이 리뷰의 유일한 기준이다.
+1. `docs/conventions.md`를 **전체** 읽는다 — 이것이 리뷰의 주요 기준이다.
+1-1. `docs/glossary.md`를 읽어 표준 용어를 파악한다.
 2. 변경된 파일을 파악한다:
    - 브랜치명이 주어지면: `git diff main...<branch> --name-only`
    - Feature 번호가 주어지면: 해당 Feature의 기획 문서에서 구현 범위 확인
@@ -30,6 +31,8 @@ agent: general-purpose
 - **§9 함수/파일 크기**: 20줄 권장, 파라미터 3개 권장
 - **§10 테스트**: AAA, Classicist, 커버리지 목표
 - **§11 임포트**: 순서, 절대 경로, 함수 안 use 금지
+
+**용어 일관성**: 코드의 타입명/함수명이 `docs/glossary.md`의 영문 표기명과 일치하는지 확인한다.
 
 컨벤션에 명시되지 않은 사항은 지적하지 않는다. 주관적 선호가 아닌 문서화된 규칙만 적용한다.
 

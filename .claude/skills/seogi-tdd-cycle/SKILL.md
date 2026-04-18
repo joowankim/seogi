@@ -26,6 +26,7 @@ description: seogi 프로젝트의 TDD 구현 워크플로우. 기획 승인 완
 | Mock 전략 | Classicist (실제 인메모리 SQLite) |
 | 커밋 주기 | Safe point (모든 테스트 녹색일 때만) |
 | 브랜치 커버리지 | 100% (`cargo llvm-cov --branch`) |
+| 용어 | `docs/glossary.md`의 영문 표기명을 타입명/함수명/변수명으로 사용 |
 
 ## 5단계 절차
 

@@ -13,7 +13,8 @@ agent: general-purpose
 
 1. `docs/ground-truth.md`를 읽어 프로젝트의 두 가지 목적을 파악한다.
 2. `docs/feature-planning.md`를 **전체** 읽는다 — 이것이 기획 문서의 품질 기준이다.
-3. 리뷰 대상 기획 문서를 읽는다.
+3. `docs/glossary.md`를 읽어 표준 용어를 파악한다.
+4. 리뷰 대상 기획 문서를 읽는다.
 
 ## 리뷰 기준
 
@@ -50,6 +51,11 @@ agent: general-purpose
 
 - 함수형 3계층(domain → adapter → workflow → entrypoint)을 따르는가?
 - 의존 Feature가 올바르게 명시되는가?
+
+### 7. 용어 일관성
+
+- 기획 문서의 용어가 `docs/glossary.md`의 표준 용어와 일치하는가?
+- glossary에 정의된 용어와 다른 표현을 사용하고 있지 않은가?
 
 ## 출력 형식
 
