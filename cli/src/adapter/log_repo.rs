@@ -128,6 +128,35 @@ pub fn list_system_events_by_session(
     Ok(rows)
 }
 
+/// 지정 기간 내 고유 `session_id` 목록을 조회한다.
+///
+/// `project`가 `Some`이면 해당 프로젝트만 필터. `None`이면 전체.
+///
+/// # Errors
+///
+/// DB 읽기 실패 시 `AdapterError::Database`.
+pub fn list_session_ids_by_range(
+    conn: &Connection,
+    from_ts: i64,
+    to_ts: i64,
+    project: Option<&str>,
+) -> Result<Vec<String>, AdapterError> {
+    let rows = if let Some(p) = project {
+        let mut stmt = conn.prepare(
+            "SELECT DISTINCT session_id FROM tool_uses WHERE timestamp >= ?1 AND timestamp <= ?2 AND project = ?3 ORDER BY session_id",
+        )?;
+        stmt.query_map((from_ts, to_ts, p), |r| r.get(0))?
+            .collect::<Result<Vec<_>, _>>()?
+    } else {
+        let mut stmt = conn.prepare(
+            "SELECT DISTINCT session_id FROM tool_uses WHERE timestamp >= ?1 AND timestamp <= ?2 ORDER BY session_id",
+        )?;
+        stmt.query_map((from_ts, to_ts), |r| r.get(0))?
+            .collect::<Result<Vec<_>, _>>()?
+    };
+    Ok(rows)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -308,5 +337,48 @@ mod tests {
 
         let results = list_system_events_by_session(&conn, "nonexistent").unwrap();
         assert!(results.is_empty());
+    }
+
+    fn make_tool_use_with_project(session_id: &str, project: &str, ts: i64) -> ToolUse {
+        ToolUse::new(
+            format!("id-{session_id}-{ts}"),
+            SessionId::new(session_id),
+            project.to_string(),
+            format!("/{project}"),
+            "Read".to_string(),
+            "{}".to_string(),
+            Ms::zero(),
+            Timestamp::new(ts),
+        )
+    }
+
+    #[test]
+    fn test_list_session_ids_by_range() {
+        let conn = db::initialize_in_memory().unwrap();
+        save_tool_use(&conn, &make_tool_use_with_project("s1", "p1", 1000)).unwrap();
+        save_tool_use(&conn, &make_tool_use_with_project("s2", "p1", 3000)).unwrap();
+        save_tool_use(&conn, &make_tool_use_with_project("s3", "p2", 5000)).unwrap();
+
+        let ids = list_session_ids_by_range(&conn, 1000, 5000, None).unwrap();
+        assert_eq!(ids.len(), 3);
+    }
+
+    #[test]
+    fn test_list_session_ids_by_project() {
+        let conn = db::initialize_in_memory().unwrap();
+        save_tool_use(&conn, &make_tool_use_with_project("s1", "p1", 1000)).unwrap();
+        save_tool_use(&conn, &make_tool_use_with_project("s2", "p2", 2000)).unwrap();
+
+        let ids = list_session_ids_by_range(&conn, 1000, 5000, Some("p1")).unwrap();
+        assert_eq!(ids, vec!["s1"]);
+    }
+
+    #[test]
+    fn test_list_session_ids_out_of_range() {
+        let conn = db::initialize_in_memory().unwrap();
+        save_tool_use(&conn, &make_tool_use_with_project("s1", "p1", 1000)).unwrap();
+
+        let ids = list_session_ids_by_range(&conn, 5000, 9000, None).unwrap();
+        assert!(ids.is_empty());
     }
 }

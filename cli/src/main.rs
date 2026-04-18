@@ -87,8 +87,12 @@ fn main() -> Result<()> {
             );
         }
         Commands::Report { from, to, project } => {
-            let config = seogi::config::Config::load(cli.config.as_deref())?;
-            seogi::commands::report::run(&config, &from, &to, project.as_deref())?;
+            let db_path = seogi::entrypoint::hooks::db_path();
+            let conn = seogi::adapter::db::initialize_db(&db_path)
+                .map_err(|e| anyhow::anyhow!("Failed to initialize database: {e}"))?;
+            let output = seogi::workflow::report::run(&conn, &from, &to, project.as_deref())
+                .map_err(|e| anyhow::anyhow!("Failed to generate report: {e}"))?;
+            print!("{output}");
         }
         Commands::Changelog { action } => {
             let config = seogi::config::Config::load(cli.config.as_deref())?;
