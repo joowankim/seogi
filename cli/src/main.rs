@@ -60,6 +60,8 @@ enum ChangelogAction {
 enum HookAction {
     /// 도구 사용 성공 기록 (`PostToolUse`)
     PostTool,
+    /// 도구 사용 실패 기록 (`PostToolUseFailure`)
+    PostToolFailure,
 }
 
 fn main() -> Result<()> {
@@ -88,6 +90,9 @@ fn main() -> Result<()> {
         Commands::Hook { action } => match action {
             HookAction::PostTool => {
                 seogi::entrypoint::hooks::post_tool::run()?;
+            }
+            HookAction::PostToolFailure => {
+                seogi::entrypoint::hooks::post_tool_failure::run()?;
             }
         },
     }

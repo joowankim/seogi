@@ -3,11 +3,11 @@ use std::io::Read;
 use anyhow::{Context, Result};
 
 use crate::adapter::db;
-use crate::workflow::log_tool;
+use crate::workflow::log_failure;
 
-/// `PostToolUse` 훅 진입점.
+/// `PostToolUseFailure` 훅 진입점.
 ///
-/// stdin에서 JSON을 읽고, DB에 도구 사용 기록을 저장한다.
+/// stdin에서 JSON을 읽고, DB에 도구 실패 기록을 저장한다.
 ///
 /// # Errors
 ///
@@ -20,7 +20,7 @@ pub fn run() -> Result<()> {
 
     let conn = db::initialize_db(&super::db_path()).context("Failed to initialize database")?;
 
-    log_tool::run(&conn, &stdin_buf).context("Failed to save tool use")?;
+    log_failure::run(&conn, &stdin_buf).context("Failed to save tool failure")?;
 
     Ok(())
 }
