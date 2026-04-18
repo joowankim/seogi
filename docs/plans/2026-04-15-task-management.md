@@ -30,21 +30,19 @@ seogi hook post-tool             # 훅 모드 (Claude Code가 호출)
 seogi mcp-server                 # MCP 서버 모드 (Claude Code 연동)
 ```
 
-### 코드 구조 (DDD + ROP)
+### 코드 구조 (함수형 3계층 + ROP)
 
 ```
-representation 계층 (CLI, MCP 서버, 훅)
+entrypoint 계층 (CLI, MCP 서버, 훅)
     ↓ 호출
-service 계층 (유스케이스: create_task, start_task, log_tool_use, ...)
+workflow 계층 (유스케이스: create_task, start_task, log_tool_use, ...)
     ↓ 호출
-domain 계층 (Task, Project, Status, LogEntry 엔티티 + FSM 로직)
-    ↓ 호출
-infrastructure 계층 (SQLite 리포지토리)
+domain 계층 (순수 타입 + 순수 함수) + adapter 계층 (SQLite, 파일 I/O)
 ```
 
-- CLI를 먼저 구현하고, MCP 서버 추가 시 representation만 추가
+- CLI를 먼저 구현하고, MCP 서버 추가 시 entrypoint만 추가
 - ROP: Rust의 `Result<T, E>` 체인으로 자연스럽게 대응
-- 기존 코드를 이 구조로 리팩토링
+- Repository trait 없이 모듈+함수로 구성 (Dependency Rejection)
 
 ---
 
@@ -297,10 +295,26 @@ MCP 도구:
 
 ### 2단계: 태스크 관리
 
-1. 프로젝트/태스크/상태 카테고리/커스텀 상태 테이블 추가
-2. 도메인 로직 (FSM, 상태 전환 유효성 검증)
-3. CLI 명령어 (project, task, status)
-4. DDD 구조로 기존 코드 리팩토링
+> 테이블은 Phase 1에서 이미 생성됨. 리팩토링도 Phase 1에서 함수형 3계층으로 완료.
+
+| Feature | 내용 | 의존성 |
+|---------|------|--------|
+| 11 | 초기 데이터 시딩 — `StatusCategory` enum, `status_categories` 테이블 DROP, `statuses.category TEXT` 변경, `projects.next_seq` 추가, 기본 statuses 7개 시딩 | 없음 |
+| 12 | Project CRUD — `project create/list`, `Prefix` newtype (대문자 3글자), 출력 테이블+`--json` | 11 |
+| 13 | Status CRUD — `status create/update/delete/list`, 카테고리 유효성 검증, 출력 테이블+`--json` | 11 |
+| 14 | Task 생성/조회 — `task create/list`, `Label` enum, `{prefix}-{seq}` ID, 초기상태 backlog, 필터링 | 12, 13 |
+| 15 | Task 업데이트 — `task update` (title, description, label 수정) | 14 |
+| 16 | FSM + Task 상태 전환 — `task move`, 카테고리 간 전환 규칙, `Canceled→Backlog` 허용, `task_events` 기록 | 14 |
+
+**결정 사항:**
+- 카테고리는 DB 테이블이 아닌 코드 enum (`StatusCategory`)
+- 기본 statuses 7개는 스키마 적용 시 자동 삽입
+- `projects.next_seq`로 시퀀스 채번 (DEFAULT 없이 도메인에서 초기값 설정)
+- `--project`는 프로젝트 이름, prefix는 기본값 이름 앞 3글자 대문자
+- 출력은 테이블 + `--json` 플래그
+- `start`/`done` 단축 없이 `move`로 통일
+- `Canceled → Backlog` 복구 허용
+- CLI session_id는 도메인 상수
 
 ### 3단계: MCP 서버
 
@@ -322,7 +336,7 @@ MCP 도구:
 - 훅: bash → Rust 전환. `seogi hook <name>` 명령어로 대체.
 - 상태 시스템: Linear 방식의 2단계 구조 (고정 카테고리 5개 + 커스텀 상태).
 - 이벤트: from_status/to_status 방식으로 기록. 고정 이벤트 타입 없음.
-- 코드 구조: DDD + ROP. representation(CLI/MCP) → service → domain → infrastructure.
+- 코드 구조: 함수형 3계층 + ROP. entrypoint(CLI/MCP) → workflow → (domain + adapter).
 - MCP 서버: CLI와 같은 서비스 인터페이스 사용. seogi 바이너리에 포함.
 - 에이전트 태스크 생성: description을 자세히 작성. title/description 업데이트 가능.
 - 에이전트 상태 전환: done 포함 모든 전환 허용.
