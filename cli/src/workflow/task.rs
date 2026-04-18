@@ -86,6 +86,54 @@ pub fn list(
     Ok(rows)
 }
 
+/// 태스크를 업데이트한다.
+///
+/// 지정된 필드만 변경하고 `updated_at`을 갱신한다.
+///
+/// # Errors
+///
+/// 옵션 미지정, 빈 title/description, 무효 라벨, 태스크 미존재, DB 에러 시 `DomainError`.
+pub fn update(
+    conn: &Connection,
+    task_id: &str,
+    title: Option<&str>,
+    description: Option<&str>,
+    label_str: Option<&str>,
+) -> Result<(), DomainError> {
+    if title.is_none() && description.is_none() && label_str.is_none() {
+        return Err(DomainError::Validation(
+            "At least one of --title, --description, or --label must be specified".to_string(),
+        ));
+    }
+    if let Some("") = title {
+        return Err(DomainError::Validation(
+            "Task title must not be empty".to_string(),
+        ));
+    }
+    if let Some("") = description {
+        return Err(DomainError::Validation(
+            "Task description must not be empty".to_string(),
+        ));
+    }
+    if let Some(l) = label_str {
+        Label::from_str(l)?;
+    }
+
+    let params = task_repo::TaskUpdate {
+        title,
+        description,
+        label: label_str,
+    };
+    let now = Utc::now();
+    let changed = task_repo::update(conn, task_id, &params, &now)?;
+    if !changed {
+        return Err(DomainError::Validation(format!(
+            "Task not found: \"{task_id}\""
+        )));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -182,5 +230,60 @@ mod tests {
 
         let by_status = list(&conn, None, Some("backlog"), None).unwrap();
         assert_eq!(by_status.len(), 2);
+    }
+
+    // Q6: update 성공
+    #[test]
+    fn test_update_task_success() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "title", "desc", "feature").unwrap();
+
+        let result = update(&conn, "SEO-1", Some("new title"), None, None);
+        assert!(result.is_ok());
+
+        let rows = list(&conn, None, None, None).unwrap();
+        assert_eq!(rows[0].title, "new title");
+    }
+
+    // Q7: update 존재하지 않는 태스크 → 에러
+    #[test]
+    fn test_update_task_not_found() {
+        let conn = initialize_in_memory().unwrap();
+        let result = update(&conn, "SEO-99", Some("new"), None, None);
+        assert!(result.is_err());
+    }
+
+    // Q8: update 옵션 미지정 → 에러
+    #[test]
+    fn test_update_task_no_options() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "title", "desc", "feature").unwrap();
+
+        let result = update(&conn, "SEO-1", None, None, None);
+        assert!(result.is_err());
+    }
+
+    // Q9: update 빈 title → 에러
+    #[test]
+    fn test_update_task_empty_title() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "title", "desc", "feature").unwrap();
+
+        let result = update(&conn, "SEO-1", Some(""), None, None);
+        assert!(result.is_err());
+    }
+
+    // Q10: update 무효 label → 에러
+    #[test]
+    fn test_update_task_invalid_label() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "title", "desc", "feature").unwrap();
+
+        let result = update(&conn, "SEO-1", None, None, Some("invalid"));
+        assert!(result.is_err());
     }
 }

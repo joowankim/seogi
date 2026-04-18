@@ -149,6 +149,20 @@ enum TaskAction {
         #[arg(long)]
         json: bool,
     },
+    /// 태스크 수정
+    Update {
+        /// 태스크 ID (e.g., SEO-1)
+        task_id: String,
+        /// 변경할 제목
+        #[arg(long)]
+        title: Option<String>,
+        /// 변경할 설명
+        #[arg(long)]
+        description: Option<String>,
+        /// 변경할 라벨
+        #[arg(long)]
+        label: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -271,6 +285,20 @@ fn main() -> Result<()> {
                         status.as_deref(),
                         label.as_deref(),
                         json,
+                    )?;
+                }
+                TaskAction::Update {
+                    task_id,
+                    title,
+                    description,
+                    label,
+                } => {
+                    seogi::entrypoint::task::update(
+                        &conn,
+                        &task_id,
+                        title.as_deref(),
+                        description.as_deref(),
+                        label.as_deref(),
                     )?;
                 }
             }

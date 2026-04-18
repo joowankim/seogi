@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 
 use super::mapper::task_list_row_from_row;
@@ -82,6 +83,51 @@ pub fn list_all(conn: &Connection, filter: &TaskFilter<'_>) -> rusqlite::Result<
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map(param_refs.as_slice(), task_list_row_from_row)?;
     rows.collect()
+}
+
+/// 태스크 업데이트 파라미터.
+pub struct TaskUpdate<'a> {
+    pub title: Option<&'a str>,
+    pub description: Option<&'a str>,
+    pub label: Option<&'a str>,
+}
+
+/// 태스크의 지정된 필드를 업데이트한다. 변경된 행이 있으면 true.
+///
+/// `updated_at`은 항상 현재 시각으로 갱신된다.
+///
+/// # Errors
+///
+/// UPDATE 실패 시 `rusqlite::Error`.
+pub fn update(
+    conn: &Connection,
+    id: &str,
+    params: &TaskUpdate<'_>,
+    updated_at: &DateTime<Utc>,
+) -> rusqlite::Result<bool> {
+    let mut sets = vec!["updated_at = ?"];
+    let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(updated_at.to_rfc3339())];
+
+    if let Some(title) = params.title {
+        sets.push("title = ?");
+        values.push(Box::new(title.to_string()));
+    }
+    if let Some(description) = params.description {
+        sets.push("description = ?");
+        values.push(Box::new(description.to_string()));
+    }
+    if let Some(label) = params.label {
+        sets.push("label = ?");
+        values.push(Box::new(label.to_string()));
+    }
+
+    let sql = format!("UPDATE tasks SET {} WHERE id = ?", sets.join(", "));
+    values.push(Box::new(id.to_string()));
+
+    let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+        values.iter().map(std::convert::AsRef::as_ref).collect();
+    let changed = conn.execute(&sql, param_refs.as_slice())?;
+    Ok(changed > 0)
 }
 
 #[cfg(test)]
@@ -309,5 +355,71 @@ mod tests {
         let rows = list_all(&conn, &filter).unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].id, "SEO-1");
+    }
+
+    // Q3: update title만 → title 변경, updated_at 갱신
+    #[test]
+    fn test_task_repo_update_title_only() {
+        let (conn, project_id, status_id) = setup();
+        let task = sample_task("SEO", 1, &status_id, &project_id);
+        save(&conn, &task).unwrap();
+
+        let params = TaskUpdate {
+            title: Some("new title"),
+            description: None,
+            label: None,
+        };
+        let changed = update(&conn, "SEO-1", &params, &chrono::Utc::now()).unwrap();
+        assert!(changed);
+
+        let (title, desc): (String, String) = conn
+            .query_row(
+                "SELECT title, description FROM tasks WHERE id = 'SEO-1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(title, "new title");
+        assert_eq!(desc, "description"); // 변경 안 됨
+    }
+
+    // Q4: update 복합 → 모든 필드 변경
+    #[test]
+    fn test_task_repo_update_combined() {
+        let (conn, project_id, status_id) = setup();
+        let task = sample_task("SEO", 1, &status_id, &project_id);
+        save(&conn, &task).unwrap();
+
+        let params = TaskUpdate {
+            title: Some("t2"),
+            description: Some("d2"),
+            label: Some("bug"),
+        };
+        let changed = update(&conn, "SEO-1", &params, &chrono::Utc::now()).unwrap();
+        assert!(changed);
+
+        let (title, desc, label): (String, String, String) = conn
+            .query_row(
+                "SELECT title, description, label FROM tasks WHERE id = 'SEO-1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(title, "t2");
+        assert_eq!(desc, "d2");
+        assert_eq!(label, "bug");
+    }
+
+    // Q5: update 없는 id → false
+    #[test]
+    fn test_task_repo_update_not_found() {
+        let (conn, _, _) = setup();
+        let params = TaskUpdate {
+            title: Some("new"),
+            description: None,
+            label: None,
+        };
+        let changed = update(&conn, "SEO-99", &params, &chrono::Utc::now()).unwrap();
+        assert!(!changed);
     }
 }
