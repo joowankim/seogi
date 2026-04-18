@@ -95,9 +95,15 @@ CREATE TABLE IF NOT EXISTS session_metrics (
     bash_error_rate         REAL NOT NULL,
     timestamp               INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS changelog (
+    id          TEXT PRIMARY KEY,
+    description TEXT NOT NULL,
+    timestamp   INTEGER NOT NULL
+);
 ";
 
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 
 fn apply_schema(conn: &Connection) -> Result<(), AdapterError> {
     Ok(conn.execute_batch(SCHEMA_SQL)?)
@@ -145,7 +151,8 @@ pub fn initialize_in_memory() -> Result<Connection, AdapterError> {
 mod tests {
     use super::*;
 
-    const EXPECTED_TABLES: [&str; 9] = [
+    const EXPECTED_TABLES: [&str; 10] = [
+        "changelog",
         "projects",
         "session_metrics",
         "status_categories",

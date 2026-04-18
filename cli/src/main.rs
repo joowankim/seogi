@@ -94,14 +94,16 @@ fn main() -> Result<()> {
                 .map_err(|e| anyhow::anyhow!("Failed to generate report: {e}"))?;
             print!("{output}");
         }
-        Commands::Changelog { action } => {
-            let config = seogi::config::Config::load(cli.config.as_deref())?;
-            match action {
-                ChangelogAction::Add { description } => {
-                    seogi::commands::changelog::add(&config, &description)?;
-                }
+        Commands::Changelog { action } => match action {
+            ChangelogAction::Add { description } => {
+                let db_path = seogi::entrypoint::hooks::db_path();
+                let conn = seogi::adapter::db::initialize_db(&db_path)
+                    .map_err(|e| anyhow::anyhow!("Failed to initialize database: {e}"))?;
+                let ts = seogi::workflow::changelog::run(&conn, &description)
+                    .map_err(|e| anyhow::anyhow!("Failed to save changelog: {e}"))?;
+                println!("Recorded at {ts}");
             }
-        }
+        },
         Commands::Migrate => {
             let config = seogi::config::Config::load(cli.config.as_deref())?;
             let log_dir = config.log_dir_expanded();
