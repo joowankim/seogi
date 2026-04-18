@@ -5,108 +5,21 @@ use rusqlite::Connection;
 
 use super::error::AdapterError;
 
-const SCHEMA_SQL: &str = "
-CREATE TABLE IF NOT EXISTS projects (
-    id          TEXT PRIMARY KEY,
-    name        TEXT NOT NULL,
-    prefix      TEXT NOT NULL UNIQUE,
-    goal        TEXT NOT NULL,
-    created_at  INTEGER NOT NULL,
-    updated_at  INTEGER NOT NULL
-);
+const SCHEMA_SQL: &str = include_str!("sql/schema.sql");
+const SEED_SQL: &str = include_str!("sql/seed.sql");
+const MIGRATION_V2_TO_V3: &str = include_str!("sql/migration_v2_to_v3.sql");
 
-CREATE TABLE IF NOT EXISTS status_categories (
-    id          TEXT PRIMARY KEY,
-    name        TEXT NOT NULL,
-    position    INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS statuses (
-    id          TEXT PRIMARY KEY,
-    name        TEXT NOT NULL,
-    category_id TEXT NOT NULL REFERENCES status_categories(id),
-    position    INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS tasks (
-    id          TEXT PRIMARY KEY,
-    title       TEXT NOT NULL,
-    description TEXT NOT NULL,
-    label       TEXT NOT NULL,
-    status_id   TEXT NOT NULL REFERENCES statuses(id),
-    project_id  TEXT NOT NULL REFERENCES projects(id),
-    created_at  INTEGER NOT NULL,
-    updated_at  INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS task_events (
-    id          TEXT PRIMARY KEY,
-    task_id     TEXT NOT NULL REFERENCES tasks(id),
-    from_status TEXT,
-    to_status   TEXT NOT NULL,
-    session_id  TEXT NOT NULL,
-    timestamp   INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS tool_uses (
-    id              TEXT PRIMARY KEY,
-    session_id      TEXT NOT NULL,
-    project         TEXT NOT NULL,
-    project_path    TEXT NOT NULL,
-    tool_name       TEXT NOT NULL,
-    tool_input      TEXT NOT NULL,
-    duration_ms     INTEGER NOT NULL,
-    timestamp       INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS tool_failures (
-    id              TEXT PRIMARY KEY,
-    session_id      TEXT NOT NULL,
-    project         TEXT NOT NULL,
-    project_path    TEXT NOT NULL,
-    tool_name       TEXT NOT NULL,
-    error           TEXT NOT NULL,
-    timestamp       INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS system_events (
-    id              TEXT PRIMARY KEY,
-    session_id      TEXT NOT NULL,
-    project         TEXT NOT NULL,
-    project_path    TEXT NOT NULL,
-    event_type      TEXT NOT NULL,
-    content         TEXT NOT NULL,
-    timestamp       INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS session_metrics (
-    id                      TEXT PRIMARY KEY,
-    session_id              TEXT NOT NULL,
-    project                 TEXT NOT NULL,
-    read_before_edit_ratio  INTEGER NOT NULL,
-    doom_loop_count         INTEGER NOT NULL,
-    test_invoked            INTEGER NOT NULL,
-    build_invoked           INTEGER NOT NULL,
-    lint_invoked            INTEGER NOT NULL,
-    typecheck_invoked       INTEGER NOT NULL,
-    tool_call_count         INTEGER NOT NULL,
-    session_duration_ms     INTEGER NOT NULL,
-    edit_files              TEXT NOT NULL,
-    bash_error_rate         REAL NOT NULL,
-    timestamp               INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS changelog (
-    id          TEXT PRIMARY KEY,
-    description TEXT NOT NULL,
-    timestamp   INTEGER NOT NULL
-);
-";
-
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 
 fn apply_schema(conn: &Connection) -> Result<(), AdapterError> {
-    Ok(conn.execute_batch(SCHEMA_SQL)?)
+    conn.execute_batch(SCHEMA_SQL)?;
+    conn.execute_batch(SEED_SQL)?;
+    Ok(())
+}
+
+fn migrate_v2_to_v3(conn: &Connection) -> Result<(), AdapterError> {
+    conn.execute_batch(MIGRATION_V2_TO_V3)?;
+    Ok(())
 }
 
 fn setup_connection(conn: Connection) -> Result<Connection, AdapterError> {
@@ -115,6 +28,9 @@ fn setup_connection(conn: Connection) -> Result<Connection, AdapterError> {
     let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
 
     if version < SCHEMA_VERSION {
+        if version > 0 && version < 3 {
+            migrate_v2_to_v3(&conn)?;
+        }
         apply_schema(&conn)?;
         conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
     }
@@ -151,11 +67,22 @@ pub fn initialize_in_memory() -> Result<Connection, AdapterError> {
 mod tests {
     use super::*;
 
-    const EXPECTED_TABLES: [&str; 10] = [
+    use std::str::FromStr;
+
+    use crate::domain::status::StatusCategory;
+
+    fn insert_test_tool_use(conn: &Connection) {
+        conn.execute(
+            "INSERT INTO tool_uses (id, session_id, project, project_path, tool_name, tool_input, duration_ms, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            ("t1", "s1", "proj", "/path", "Bash", "{}", 100, 1000),
+        )
+        .unwrap();
+    }
+
+    const EXPECTED_TABLES: [&str; 9] = [
         "changelog",
         "projects",
         "session_metrics",
-        "status_categories",
         "statuses",
         "system_events",
         "task_events",
@@ -217,22 +144,9 @@ mod tests {
                 ("name", "TEXT", true),
                 ("prefix", "TEXT", true),
                 ("goal", "TEXT", true),
+                ("next_seq", "INTEGER", true),
                 ("created_at", "INTEGER", true),
                 ("updated_at", "INTEGER", true),
-            ],
-        );
-    }
-
-    #[test]
-    fn test_schema_columns_status_categories() {
-        let conn = initialize_in_memory().unwrap();
-        assert_table_columns(
-            &conn,
-            "status_categories",
-            &[
-                ("id", "TEXT", false),
-                ("name", "TEXT", true),
-                ("position", "INTEGER", true),
             ],
         );
     }
@@ -246,7 +160,7 @@ mod tests {
             &[
                 ("id", "TEXT", false),
                 ("name", "TEXT", true),
-                ("category_id", "TEXT", true),
+                ("category", "TEXT", true),
                 ("position", "INTEGER", true),
             ],
         );
@@ -371,19 +285,14 @@ mod tests {
     #[test]
     fn test_schema_idempotent() {
         let conn = initialize_in_memory().unwrap();
-
-        conn.execute(
-            "INSERT INTO projects (id, name, prefix, goal, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            ("p1", "test", "TST", "goal", 1000, 1000),
-        )
-        .unwrap();
+        insert_test_tool_use(&conn);
 
         // user_version을 리셋하여 스키마 재적용 강제
         conn.pragma_update(None, "user_version", 0).unwrap();
         apply_schema(&conn).unwrap();
 
         let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM projects", [], |r| r.get(0))
+            .query_row("SELECT COUNT(*) FROM tool_uses", [], |r| r.get(0))
             .unwrap();
         assert_eq!(count, 1);
     }
@@ -424,17 +333,153 @@ mod tests {
         let db_path = tmp.path().join("seogi.db");
 
         let conn1 = initialize_db(&db_path).unwrap();
-        conn1
-            .execute(
-                "INSERT INTO projects (id, name, prefix, goal, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                ("p1", "test", "TST", "goal", 1000, 1000),
-            )
-            .unwrap();
+        insert_test_tool_use(&conn1);
         drop(conn1);
 
         let conn2 = initialize_db(&db_path).unwrap();
         let count: i64 = conn2
-            .query_row("SELECT COUNT(*) FROM projects", [], |r| r.get(0))
+            .query_row("SELECT COUNT(*) FROM tool_uses", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_seed_statuses_count() {
+        let conn = initialize_in_memory().unwrap();
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM statuses", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 7);
+    }
+
+    #[test]
+    fn test_seed_statuses_data() {
+        let conn = initialize_in_memory().unwrap();
+
+        let mut stmt = conn
+            .prepare("SELECT name, category, position FROM statuses ORDER BY position")
+            .unwrap();
+        let rows: Vec<(String, String, i64)> = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)?,
+                ))
+            })
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+
+        let expected = vec![
+            ("backlog".to_string(), "backlog".to_string(), 0),
+            ("todo".to_string(), "unstarted".to_string(), 1),
+            ("in_progress".to_string(), "started".to_string(), 2),
+            ("in_review".to_string(), "started".to_string(), 3),
+            ("blocked".to_string(), "started".to_string(), 4),
+            ("done".to_string(), "completed".to_string(), 5),
+            ("canceled".to_string(), "canceled".to_string(), 6),
+        ];
+
+        assert_eq!(rows, expected);
+    }
+
+    #[test]
+    fn test_seed_statuses_valid_categories() {
+        let conn = initialize_in_memory().unwrap();
+
+        let mut stmt = conn.prepare("SELECT category FROM statuses").unwrap();
+        let categories: Vec<String> = stmt
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+
+        for cat in &categories {
+            assert!(
+                StatusCategory::from_str(cat).is_ok(),
+                "invalid category in seed data: {cat}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_seed_idempotent() {
+        let conn = initialize_in_memory().unwrap();
+
+        // 재적용 강제
+        conn.pragma_update(None, "user_version", 0).unwrap();
+        apply_schema(&conn).unwrap();
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM statuses", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 7);
+    }
+
+    #[test]
+    fn test_schema_preserves_phase1_data() {
+        let conn = initialize_in_memory().unwrap();
+        insert_test_tool_use(&conn);
+
+        // 재적용 강제
+        conn.pragma_update(None, "user_version", 0).unwrap();
+        apply_schema(&conn).unwrap();
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tool_uses", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_migration_v2_to_v3_drops_status_categories() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+
+        // v2 스키마 시뮬레이션: status_categories 테이블 생성
+        conn.execute_batch(
+            "CREATE TABLE status_categories (id TEXT PRIMARY KEY, name TEXT NOT NULL, position INTEGER NOT NULL);",
+        )
+        .unwrap();
+        conn.pragma_update(None, "user_version", 2).unwrap();
+
+        // v3로 업그레이드
+        let conn = setup_connection(conn).unwrap();
+
+        let mut stmt = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+            .unwrap();
+        let tables: Vec<String> = stmt
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+
+        assert!(!tables.contains(&"status_categories".to_string()));
+        assert_eq!(tables, EXPECTED_TABLES);
+    }
+
+    #[test]
+    fn test_migration_v2_to_v3_preserves_data() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+
+        // v2 스키마 시뮬레이션
+        conn.execute_batch(
+            "CREATE TABLE status_categories (id TEXT PRIMARY KEY, name TEXT NOT NULL, position INTEGER NOT NULL);
+             CREATE TABLE tool_uses (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, project TEXT NOT NULL, project_path TEXT NOT NULL, tool_name TEXT NOT NULL, tool_input TEXT NOT NULL, duration_ms INTEGER NOT NULL, timestamp INTEGER NOT NULL);",
+        )
+        .unwrap();
+        insert_test_tool_use(&conn);
+        conn.pragma_update(None, "user_version", 2).unwrap();
+
+        // v3로 업그레이드
+        let conn = setup_connection(conn).unwrap();
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tool_uses", [], |r| r.get(0))
             .unwrap();
         assert_eq!(count, 1);
     }
