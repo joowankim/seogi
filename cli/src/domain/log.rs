@@ -172,6 +172,86 @@ impl fmt::Display for ToolFailure {
     }
 }
 
+/// 시스템 이벤트 기록.
+///
+/// Claude Code `Notification` 또는 `Stop` 훅에서 수집된 이벤트 정보를 표현한다.
+/// `system_events` 테이블의 한 행에 대응한다.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct SystemEvent {
+    id: String,
+    session_id: String,
+    project: String,
+    project_path: String,
+    event_type: String,
+    content: String,
+    timestamp: i64,
+}
+
+impl SystemEvent {
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        id: String,
+        session_id: String,
+        project: String,
+        project_path: String,
+        event_type: String,
+        content: String,
+        timestamp: i64,
+    ) -> Self {
+        Self {
+            id,
+            session_id,
+            project,
+            project_path,
+            event_type,
+            content,
+            timestamp,
+        }
+    }
+
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    #[must_use]
+    pub fn session_id(&self) -> &str {
+        &self.session_id
+    }
+
+    #[must_use]
+    pub fn project(&self) -> &str {
+        &self.project
+    }
+
+    #[must_use]
+    pub fn project_path(&self) -> &str {
+        &self.project_path
+    }
+
+    #[must_use]
+    pub fn event_type(&self) -> &str {
+        &self.event_type
+    }
+
+    #[must_use]
+    pub fn content(&self) -> &str {
+        &self.content
+    }
+
+    #[must_use]
+    pub fn timestamp(&self) -> i64 {
+        self.timestamp
+    }
+}
+
+impl fmt::Display for SystemEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[{}] {} ({})", self.session_id, self.event_type, self.id)
+    }
+}
+
 /// `cwd` 경로에서 프로젝트 이름을 추출한다.
 ///
 /// 경로의 마지막 컴포넌트를 반환한다. 루트(`/`) 등 컴포넌트가 없으면 `"unknown"`을 반환한다.
@@ -269,5 +349,39 @@ mod tests {
     fn tool_failure_display() {
         let tf = sample_tool_failure();
         assert_eq!(format!("{tf}"), "[sess-1] Bash FAILED (fail123)");
+    }
+
+    fn sample_system_event() -> SystemEvent {
+        SystemEvent::new(
+            "evt123".to_string(),
+            "sess-1".to_string(),
+            "seogi".to_string(),
+            "/Users/kim/projects/seogi".to_string(),
+            "Notification".to_string(),
+            "Permission required".to_string(),
+            1_713_000_000_000,
+        )
+    }
+
+    #[test]
+    fn system_event_creation_and_getters() {
+        let se = sample_system_event();
+
+        assert_eq!(se.id(), "evt123");
+        assert_eq!(se.session_id(), "sess-1");
+        assert_eq!(se.project(), "seogi");
+        assert_eq!(se.project_path(), "/Users/kim/projects/seogi");
+        assert_eq!(se.event_type(), "Notification");
+        assert_eq!(se.content(), "Permission required");
+        assert_eq!(se.timestamp(), 1_713_000_000_000);
+
+        // Clone + PartialEq
+        assert_eq!(se.clone(), se);
+    }
+
+    #[test]
+    fn system_event_display() {
+        let se = sample_system_event();
+        assert_eq!(format!("{se}"), "[sess-1] Notification (evt123)");
     }
 }
