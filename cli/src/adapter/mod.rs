@@ -1,3 +1,4 @@
+pub mod changelog_repo;
 pub mod db;
 pub mod error;
 pub mod log_repo;
