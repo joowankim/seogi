@@ -40,10 +40,37 @@ enum Commands {
     },
     /// JSONL 로그를 `SQLite`로 마이그레이션
     Migrate,
+    /// 프로젝트 관리
+    Project {
+        #[command(subcommand)]
+        action: ProjectAction,
+    },
     /// Claude Code 훅
     Hook {
         #[command(subcommand)]
         action: HookAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum ProjectAction {
+    /// 프로젝트 생성
+    Create {
+        /// 프로젝트 이름
+        #[arg(long)]
+        name: String,
+        /// 대문자 알파벳 3글자 (미지정 시 이름 앞 3글자 대문자)
+        #[arg(long)]
+        prefix: Option<String>,
+        /// 프로젝트 목표
+        #[arg(long)]
+        goal: String,
+    },
+    /// 프로젝트 목록 조회
+    List {
+        /// JSON 형식으로 출력
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -117,6 +144,40 @@ fn main() -> Result<()> {
                 summary.tool_uses, summary.tool_failures, summary.skipped, summary.files
             );
         }
+        Commands::Project { action } => match action {
+            ProjectAction::Create { name, prefix, goal } => {
+                let db_path = seogi::entrypoint::hooks::db_path();
+                let conn = seogi::adapter::db::initialize_db(&db_path)
+                    .map_err(|e| anyhow::anyhow!("Failed to initialize database: {e}"))?;
+                let project =
+                    seogi::workflow::project::create(&conn, &name, prefix.as_deref(), &goal)
+                        .map_err(|e| anyhow::anyhow!("{e}"))?;
+                println!(
+                    "Created project \"{}\" ({})",
+                    project.name(),
+                    project.prefix()
+                );
+            }
+            ProjectAction::List { json } => {
+                let db_path = seogi::entrypoint::hooks::db_path();
+                let conn = seogi::adapter::db::initialize_db(&db_path)
+                    .map_err(|e| anyhow::anyhow!("Failed to initialize database: {e}"))?;
+                let projects =
+                    seogi::workflow::project::list(&conn).map_err(|e| anyhow::anyhow!("{e}"))?;
+                if json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&projects)
+                            .map_err(|e| anyhow::anyhow!("Failed to serialize: {e}"))?
+                    );
+                } else {
+                    println!("{:<8} {:<20} GOAL", "PREFIX", "NAME");
+                    for p in &projects {
+                        println!("{:<8} {:<20} {}", p.prefix(), p.name(), p.goal());
+                    }
+                }
+            }
+        },
         Commands::Hook { action } => {
             use seogi::entrypoint::hooks::{
                 notification, post_tool, post_tool_failure, pre_tool, run_safely, stop,
