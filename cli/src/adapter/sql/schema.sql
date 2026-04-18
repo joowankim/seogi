@@ -4,8 +4,8 @@ CREATE TABLE IF NOT EXISTS projects (
     prefix      TEXT NOT NULL UNIQUE,
     goal        TEXT NOT NULL,
     next_seq    INTEGER NOT NULL,
-    created_at  INTEGER NOT NULL,
-    updated_at  INTEGER NOT NULL
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS statuses (
@@ -22,8 +22,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     label       TEXT NOT NULL,
     status_id   TEXT NOT NULL REFERENCES statuses(id),
     project_id  TEXT NOT NULL REFERENCES projects(id),
-    created_at  INTEGER NOT NULL,
-    updated_at  INTEGER NOT NULL
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS task_events (

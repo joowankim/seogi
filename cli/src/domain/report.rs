@@ -238,7 +238,7 @@ mod tests {
             Ms::zero(),
             Timestamp::new(1000),
         );
-        metrics::calculate(session_id, &[tu], &[])
+        metrics::calculate(SessionId::new(session_id), &[tu], &[])
     }
 
     #[test]

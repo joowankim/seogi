@@ -5,7 +5,7 @@ use regex::Regex;
 use serde::Serialize;
 
 use super::log::{ToolFailure, ToolUse};
-use super::value::Ms;
+use super::value::{Ms, SessionId};
 
 static TEST_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\b(test|vitest|playwright|jest|pytest|mocha|karma)\b")
@@ -26,7 +26,7 @@ static TYPECHECK_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct SessionMetrics {
-    session_id: String,
+    session_id: SessionId,
     read_before_edit_ratio: u32,
     doom_loop_count: u32,
     test_invoked: bool,
@@ -42,7 +42,7 @@ pub struct SessionMetrics {
 
 impl SessionMetrics {
     #[must_use]
-    pub fn session_id(&self) -> &str {
+    pub fn session_id(&self) -> &SessionId {
         &self.session_id
     }
 
@@ -102,12 +102,12 @@ impl SessionMetrics {
 /// 순수 함수. I/O 없음.
 #[must_use]
 pub fn calculate(
-    session_id: &str,
+    session_id: SessionId,
     tool_uses: &[ToolUse],
     tool_failures: &[ToolFailure],
 ) -> SessionMetrics {
     SessionMetrics {
-        session_id: session_id.to_string(),
+        session_id,
         read_before_edit_ratio: calc_read_before_edit(tool_uses),
         doom_loop_count: calc_doom_loop_count(tool_uses),
         test_invoked: calc_invoked(tool_uses, &TEST_PATTERN),
@@ -323,7 +323,7 @@ mod tests {
         let uses: Vec<_> = (0..5)
             .map(|i| make_tool_use("Read", "{}", 1000 + i))
             .collect();
-        let m = calculate("s1", &uses, &[]);
+        let m = calculate(SessionId::new("s1"), &uses, &[]);
         assert_eq!(m.tool_call_count(), 5);
     }
 
@@ -370,7 +370,7 @@ mod tests {
 
     #[test]
     fn test_empty_session() {
-        let m = calculate("s1", &[], &[]);
+        let m = calculate(SessionId::new("s1"), &[], &[]);
         assert_eq!(m.read_before_edit_ratio(), 0);
         assert_eq!(m.doom_loop_count(), 0);
         assert!(!m.test_invoked());
