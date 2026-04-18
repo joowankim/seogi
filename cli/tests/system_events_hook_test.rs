@@ -8,6 +8,7 @@ fn run_hook(db_path: &std::path::Path, args: &[&str], stdin_data: &[u8]) -> std:
         .args(args)
         .env("SEOGI_DB_PATH", db_path)
         .env("SEOGI_DIR", db_path.parent().unwrap())
+        .env("SEOGI_NO_NOTIFY", "1")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

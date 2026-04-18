@@ -9,7 +9,9 @@ pub fn handle_hook_error(error: &dyn std::fmt::Display) {
     let _ = fs::create_dir_all(&dir);
 
     log_error(&dir, error);
-    notify_if_cooldown_elapsed(&dir);
+    if update_marker_if_cooldown_elapsed(&dir) && !notification_suppressed() {
+        send_notification();
+    }
 }
 
 fn log_error(seogi_dir: &Path, error: &dyn std::fmt::Display) {
@@ -26,15 +28,21 @@ fn log_error(seogi_dir: &Path, error: &dyn std::fmt::Display) {
         });
 }
 
-fn notify_if_cooldown_elapsed(seogi_dir: &Path) {
+fn notification_suppressed() -> bool {
+    std::env::var("SEOGI_NO_NOTIFY").is_ok()
+}
+
+const NOTIFICATION_COOLDOWN_SECS: i64 = 300;
+
+/// 쿨다운이 경과했으면 마커를 갱신하고 `true`를 반환한다.
+fn update_marker_if_cooldown_elapsed(seogi_dir: &Path) -> bool {
     let marker = seogi_dir.join("last-notification");
-    let cooldown_secs = 300; // 5분
 
     let should_notify = match fs::read_to_string(&marker) {
         Ok(content) => {
             let last: i64 = content.trim().parse().unwrap_or(0);
             let now = chrono::Utc::now().timestamp();
-            now - last >= cooldown_secs
+            now - last >= NOTIFICATION_COOLDOWN_SECS
         }
         Err(_) => true,
     };
@@ -42,8 +50,9 @@ fn notify_if_cooldown_elapsed(seogi_dir: &Path) {
     if should_notify {
         let now = chrono::Utc::now().timestamp();
         let _ = fs::write(&marker, now.to_string());
-        send_notification();
     }
+
+    should_notify
 }
 
 #[cfg(target_os = "macos")]
@@ -80,8 +89,9 @@ mod tests {
     #[test]
     fn test_notification_cooldown_first_time() {
         let dir = tempfile::tempdir().unwrap();
-        notify_if_cooldown_elapsed(dir.path());
+        let should_notify = update_marker_if_cooldown_elapsed(dir.path());
 
+        assert!(should_notify);
         let marker = dir.path().join("last-notification");
         assert!(marker.exists());
     }
@@ -93,10 +103,8 @@ mod tests {
         let now = chrono::Utc::now().timestamp();
         fs::write(&marker, now.to_string()).unwrap();
 
-        let before = fs::read_to_string(&marker).unwrap();
-        notify_if_cooldown_elapsed(dir.path());
-        let after = fs::read_to_string(&marker).unwrap();
+        let should_notify = update_marker_if_cooldown_elapsed(dir.path());
 
-        assert_eq!(before, after);
+        assert!(!should_notify);
     }
 }

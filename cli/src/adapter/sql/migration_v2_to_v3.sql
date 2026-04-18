@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS task_events;
+DROP TABLE IF EXISTS tasks;
+DROP TABLE IF EXISTS statuses;
+DROP TABLE IF EXISTS status_categories;
+DROP TABLE IF EXISTS projects;
