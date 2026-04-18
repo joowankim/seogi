@@ -134,6 +134,78 @@ pub fn update(
     Ok(())
 }
 
+/// 태스크 상태를 전환한다.
+///
+/// FSM 규칙을 검증하고, `status_id`를 변경하고, `task_events`에 기록한다.
+///
+/// # Errors
+///
+/// 태스크/상태 미존재, 같은 상태, FSM 위반, DB 에러 시 `DomainError`.
+pub fn move_task(
+    conn: &Connection,
+    task_id: &str,
+    target_status_name: &str,
+) -> Result<(String, String), DomainError> {
+    let task_row = task_repo::find_by_id(conn, task_id)?
+        .ok_or_else(|| DomainError::Validation(format!("Task not found: \"{task_id}\"")))?;
+
+    let current_status = status_repo::find_by_id(conn, &task_row.status_id)?
+        .ok_or_else(|| DomainError::Validation("Current status not found".to_string()))?;
+
+    let target_status = status_repo::find_by_name(conn, target_status_name)?.ok_or_else(|| {
+        DomainError::Validation(format!("Status not found: \"{target_status_name}\""))
+    })?;
+
+    if current_status.id() == target_status.id() {
+        return Err(DomainError::Validation(format!(
+            "Task is already in status \"{target_status_name}\""
+        )));
+    }
+
+    if !current_status
+        .category()
+        .can_transition_to(target_status.category())
+    {
+        let allowed: Vec<&str> = current_status
+            .category()
+            .allowed_transitions()
+            .iter()
+            .map(StatusCategory::as_str)
+            .collect();
+        return Err(DomainError::Validation(format!(
+            "Cannot transition from {} ({}) to {} ({}). Allowed: {}",
+            current_status.name(),
+            current_status.category(),
+            target_status.name(),
+            target_status.category(),
+            allowed.join(", ")
+        )));
+    }
+
+    let now = Utc::now();
+    let changed = task_repo::update_status(conn, task_id, target_status.id(), &now)?;
+    if !changed {
+        return Err(DomainError::Validation(format!(
+            "Task not found: \"{task_id}\""
+        )));
+    }
+
+    let timestamp = Timestamp::new(now.timestamp_millis());
+    let event = TaskEvent::new(
+        task_id,
+        Some(current_status.name()),
+        target_status.name(),
+        CLI_SESSION_ID,
+        timestamp,
+    );
+    task_event_repo::save(conn, &event)?;
+
+    Ok((
+        current_status.name().to_string(),
+        target_status.name().to_string(),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -285,5 +357,86 @@ mod tests {
 
         let result = update(&conn, "SEO-1", None, None, Some("invalid"));
         assert!(result.is_err());
+    }
+
+    // Q13: move_task 허용 전환 → 성공, task_events 기록
+    #[test]
+    fn test_move_task_success() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "title", "desc", "feature").unwrap();
+
+        let (from, to) = move_task(&conn, "SEO-1", "todo").unwrap();
+        assert_eq!(from, "backlog");
+        assert_eq!(to, "todo");
+
+        // task_events: create + move = 2건
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM task_events", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 2);
+    }
+
+    // Q14: move_task 태스크 미존재 → 에러
+    #[test]
+    fn test_move_task_not_found() {
+        let conn = initialize_in_memory().unwrap();
+        let result = move_task(&conn, "SEO-99", "todo");
+        assert!(result.is_err());
+    }
+
+    // Q15: move_task 상태 미존재 → 에러
+    #[test]
+    fn test_move_task_status_not_found() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "title", "desc", "feature").unwrap();
+
+        let result = move_task(&conn, "SEO-1", "nonexistent");
+        assert!(result.is_err());
+    }
+
+    // Q16: move_task 허용되지 않은 전환 → 에러
+    #[test]
+    fn test_move_task_invalid_transition() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "title", "desc", "feature").unwrap();
+
+        // backlog → done (Backlog→Completed: 불가)
+        let result = move_task(&conn, "SEO-1", "done");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Cannot transition"), "err: {err}");
+    }
+
+    // Q17: move_task 같은 상태 → 에러
+    #[test]
+    fn test_move_task_same_status() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "title", "desc", "feature").unwrap();
+
+        let result = move_task(&conn, "SEO-1", "backlog");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("already"), "err: {err}");
+    }
+
+    // Q18: move_task 같은 카테고리 내 전환 → 성공
+    #[test]
+    fn test_move_task_same_category() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "title", "desc", "feature").unwrap();
+
+        // backlog → todo (Backlog→Unstarted)
+        move_task(&conn, "SEO-1", "todo").unwrap();
+        // todo → in_progress (Unstarted→Started)
+        move_task(&conn, "SEO-1", "in_progress").unwrap();
+        // in_progress → in_review (Started→Started: 같은 카테고리)
+        let (from, to) = move_task(&conn, "SEO-1", "in_review").unwrap();
+        assert_eq!(from, "in_progress");
+        assert_eq!(to, "in_review");
     }
 }
