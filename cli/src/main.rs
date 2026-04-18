@@ -38,6 +38,8 @@ enum Commands {
         #[command(subcommand)]
         action: ChangelogAction,
     },
+    /// JSONL 로그를 `SQLite`로 마이그레이션
+    Migrate,
     /// Claude Code 훅
     Hook {
         #[command(subcommand)]
@@ -95,6 +97,19 @@ fn main() -> Result<()> {
                     seogi::commands::changelog::add(&config, &description)?;
                 }
             }
+        }
+        Commands::Migrate => {
+            let config = seogi::config::Config::load(cli.config.as_deref())?;
+            let log_dir = config.log_dir_expanded();
+            let db_path = seogi::entrypoint::hooks::db_path();
+            let conn = seogi::adapter::db::initialize_db(&db_path)
+                .map_err(|e| anyhow::anyhow!("Failed to initialize database: {e}"))?;
+            let summary = seogi::workflow::migrate::run(&conn, &log_dir)
+                .map_err(|e| anyhow::anyhow!("Failed to migrate: {e}"))?;
+            println!(
+                "Migrated: {} tool_uses, {} tool_failures, {} skipped, {} files",
+                summary.tool_uses, summary.tool_failures, summary.skipped, summary.files
+            );
         }
         Commands::Hook { action } => match action {
             HookAction::PostTool => {
