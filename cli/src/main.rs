@@ -62,6 +62,10 @@ enum HookAction {
     PostTool,
     /// 도구 사용 실패 기록 (`PostToolUseFailure`)
     PostToolFailure,
+    /// 알림 이벤트 기록 (`Notification`)
+    Notification,
+    /// 세션 종료 이벤트 기록 (`Stop`)
+    Stop,
 }
 
 fn main() -> Result<()> {
@@ -93,6 +97,12 @@ fn main() -> Result<()> {
             }
             HookAction::PostToolFailure => {
                 seogi::entrypoint::hooks::post_tool_failure::run()?;
+            }
+            HookAction::Notification => {
+                seogi::entrypoint::hooks::notification::run()?;
+            }
+            HookAction::Stop => {
+                seogi::entrypoint::hooks::stop::run()?;
             }
         },
     }
