@@ -44,6 +44,7 @@
 ## 프로젝트 고유 개념
 
 - **CLI_SESSION_ID:** CLI에서 생성한 `TaskEvent`의 `session_id`로 사용되는 도메인 상수. 값은 `"CLI"`.
+- **상태 전환 규칙 (FSM):** `StatusCategory` 간 허용된 전환을 정의하는 유한 상태 기계. `can_transition_to`/`allowed_transitions` 순수 함수로 구현. 같은 카테고리 내 커스텀 상태 간에는 자유 전환 허용.
 - **안전 실행 (run_safely):** 훅 에러 시 `hook-errors.log`에 기록하고 exit 0으로 종료하는 동작. Claude Code 세션이 훅 에러로 중단되지 않도록 보장.
 - **콘텐츠 기반 ID (Content-Based ID):** JSONL 마이그레이션 시 `SHA-256(session_id + timestamp + tool_name)`의 앞 32자 hex로 생성하는 결정론적 ID. 재실행 시 중복 방지.
 - **타이밍 파일 (Timing File):** `PreToolUse` 훅이 도구 호출 시작 시각을 기록하는 임시 파일. `PostToolUse` 훅이 읽어 `duration: Ms`를 계산한 뒤 삭제.
