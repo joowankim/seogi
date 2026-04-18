@@ -7,12 +7,14 @@
 ## 값객체
 
 - **Ms:** 밀리초 단위 시간 간격. 도구 호출 소요 시간(`duration`) 등에 사용. `Timestamp`(시각)와 구분하여 시각과 간격의 혼동을 방지.
+- **ProjectPrefix:** 프로젝트의 대문자 알파벳 3글자 식별자 newtype. 태스크 ID의 접두사로 사용 (e.g., `"SEO"` → `SEO-1`). 정확히 3글자 대문자 알파벳만 허용하며, 프로젝트 간 중복 불가.
 - **SessionId:** Claude Code 세션의 고유 식별자. project, id 등 다른 문자열 필드와 구분.
-- **Timestamp:** 밀리초 Unix timestamp. 이벤트 발생 시각을 표현. `Ms`(간격)와 구분.
+- **Timestamp:** 밀리초 Unix timestamp. 이벤트/로그의 발생 시각(`timestamp` 컬럼)에만 사용. 엔티티의 `created_at`/`updated_at`은 ISO 8601 TEXT로 표현하며 `Timestamp` 타입을 사용하지 않는다.
 
 ## 엔티티
 
 - **MigratedRecord:** JSONL 마이그레이션 시 `LogEntry`를 `ToolUse` 또는 `ToolFailure`로 변환한 결과.
+- **Project:** 태스크를 묶는 관리 단위. name, `Prefix`, goal, next_seq을 포함하며 `projects` 테이블에 대응. next_seq은 태스크 시퀀스 채번에 사용되며 도메인에서 초기값 1로 설정.
 - **MigrateSummary:** 마이그레이션 결과 요약. tool_uses, tool_failures, skipped, files 카운터.
 - **SessionMetrics:** 세션의 프록시 지표 10개를 담는 타입. `calculate()` 순수 함수로 산출.
 - **Stats:** 수치 배열의 통계 요약. mean, median, stddev, P25, P75.
