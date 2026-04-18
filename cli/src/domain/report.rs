@@ -107,7 +107,7 @@ pub fn format_report(
     format_stat_row(
         &mut out,
         "session_duration_sec",
-        &extract(metrics, |m| m.session_duration_ms() as f64 / 1000.0),
+        &extract(metrics, |m| m.session_duration().value() as f64 / 1000.0),
     );
     format_stat_row_pct(
         &mut out,
