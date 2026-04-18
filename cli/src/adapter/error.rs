@@ -10,6 +10,9 @@ pub enum AdapterError {
 
     #[error("JSON parse error: {0}")]
     Json(#[from] serde_json::Error),
+
+    #[error("Date parse error: {0}")]
+    DateParse(String),
 }
 
 #[cfg(test)]
