@@ -4,6 +4,7 @@ use crate::adapter::error::AdapterError;
 use crate::adapter::log_repo;
 use crate::domain::metrics;
 use crate::domain::report;
+use crate::domain::value::SessionId;
 
 /// 기간별 리포트 워크플로우.
 ///
@@ -30,7 +31,11 @@ pub fn run(
     for sid in &session_ids {
         let tool_uses = log_repo::list_by_session(conn, sid)?;
         let tool_failures = log_repo::list_failures_by_session(conn, sid)?;
-        all_metrics.push(metrics::calculate(sid, &tool_uses, &tool_failures));
+        all_metrics.push(metrics::calculate(
+            SessionId::new(sid),
+            &tool_uses,
+            &tool_failures,
+        ));
     }
 
     // [Bottom: Pure] 집계 + 포맷

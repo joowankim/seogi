@@ -3,6 +3,7 @@ use rusqlite::Connection;
 use crate::adapter::error::AdapterError;
 use crate::adapter::log_repo;
 use crate::domain::metrics::{self, SessionMetrics};
+use crate::domain::value::SessionId;
 
 /// 세션 분석 워크플로우.
 ///
@@ -17,7 +18,7 @@ pub fn run(conn: &Connection, session_id: &str) -> Result<SessionMetrics, Adapte
     let tool_failures = log_repo::list_failures_by_session(conn, session_id)?;
 
     // [Middle: Pure] 지표 계산
-    let metrics = metrics::calculate(session_id, &tool_uses, &tool_failures);
+    let metrics = metrics::calculate(SessionId::new(session_id), &tool_uses, &tool_failures);
 
     Ok(metrics)
 }

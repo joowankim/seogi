@@ -4,6 +4,9 @@ use thiserror::Error;
 pub enum DomainError {
     #[error("Validation error: {0}")]
     Validation(String),
+
+    #[error("Database error: {0}")]
+    Database(#[from] rusqlite::Error),
 }
 
 #[cfg(test)]
