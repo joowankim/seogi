@@ -319,9 +319,19 @@ MCP 도구:
 
 ### 3단계: MCP 서버
 
-1. MCP 프로토콜 구현 (`seogi mcp-server`)
-2. CLI와 동일한 서비스 인터페이스 사용
-3. Claude Code MCP 설정 등록
+> entrypoint 계층에서만 변경. workflow/domain/adapter는 CLI와 동일하게 재사용.
+
+| Feature | 내용 | 의존성 |
+|---------|------|--------|
+| 17 (SEO-1) | MCP 서버 부트스트랩 — `rmcp` 크레이트, `seogi mcp-server` 명령어, stdio transport | 없음 |
+| 18 (SEO-2) | MCP 도구 구현 — project/status/task 도구 10개, 기존 workflow 재사용, `spawn_blocking` 래핑 | 17 |
+| 19 (SEO-3) | Claude Code MCP 등록 + README — install.sh/uninstall.sh에 MCP 설정 추가/제거, CLI/MCP 사용법 README 작성 | 18 |
+
+**결정 사항:**
+- MCP 크레이트: `rmcp` (공식 SDK, `modelcontextprotocol/rust-sdk`)
+- Transport: stdio (Claude Code 기본)
+- async 래핑: workflow는 sync(rusqlite), MCP 서버에서 `spawn_blocking`으로 감싸 호출
+- 도구 10개를 하나의 feature로 통합 (동일 패턴)
 
 ### 4단계: 태스크 기반 성과 지표
 
