@@ -15,6 +15,8 @@ uuid = { version = "1", features = ["v4"] }
 thiserror = "2"
 sha2 = "0.10"
 hex = "0.4"
+rmcp = { version = "1", features = ["server", "transport-io"] }
+tokio = { version = "1", features = ["rt", "io-std", "io-util"] }
 
 [dev-dependencies]
 tempfile = "3"
