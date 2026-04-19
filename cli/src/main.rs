@@ -61,6 +61,8 @@ enum Commands {
         #[command(subcommand)]
         action: HookAction,
     },
+    /// MCP 서버 (stdio transport)
+    McpServer,
 }
 
 #[derive(Subcommand)]
@@ -312,6 +314,9 @@ fn main() -> Result<()> {
                     seogi::entrypoint::task::move_task(&conn, &task_id, &status)?;
                 }
             }
+        }
+        Commands::McpServer => {
+            seogi::entrypoint::mcp::run()?;
         }
         Commands::Hook { action } => {
             use seogi::entrypoint::hooks::{
