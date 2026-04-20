@@ -73,7 +73,7 @@ fn mcp_server_handles_initialize_and_responds_with_server_info() {
 }
 
 #[test]
-fn mcp_server_returns_empty_tools_list() {
+fn mcp_server_returns_tools_list() {
     let mut child = spawn_mcp_server();
     let mut stdin = child.stdin.take().unwrap();
     let mut reader = BufReader::new(child.stdout.take().unwrap());
@@ -92,7 +92,7 @@ fn mcp_server_returns_empty_tools_list() {
 
     let response = recv_jsonrpc(&mut reader);
     let tools = response["result"]["tools"].as_array().unwrap();
-    assert!(tools.is_empty());
+    assert!(!tools.is_empty());
 
     drop(stdin);
     let status = child.wait().unwrap();
