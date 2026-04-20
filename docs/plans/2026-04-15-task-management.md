@@ -121,23 +121,6 @@ CREATE TABLE system_events (
     timestamp       INTEGER NOT NULL
 );
 
--- 세션 메트릭
-CREATE TABLE session_metrics (
-    id                      TEXT PRIMARY KEY,
-    session_id              TEXT NOT NULL,
-    project                 TEXT NOT NULL,
-    read_before_edit_ratio  INTEGER NOT NULL,
-    doom_loop_count         INTEGER NOT NULL,
-    test_invoked            INTEGER NOT NULL,
-    build_invoked           INTEGER NOT NULL,
-    lint_invoked            INTEGER NOT NULL,
-    typecheck_invoked       INTEGER NOT NULL,
-    tool_call_count         INTEGER NOT NULL,
-    session_duration_ms     INTEGER NOT NULL,
-    edit_files              TEXT NOT NULL,
-    bash_error_rate         REAL NOT NULL,
-    timestamp               INTEGER NOT NULL
-);
 ```
 
 ### 설계 원칙
@@ -197,20 +180,49 @@ CREATE TABLE session_metrics (
 
 ## 태스크 기반 성과 지표
 
-| 지표 | 계산 | 의미 |
+### 태스크 고유 지표
+
+| 지표 | 계산 | 데이터 소스 |
 |---|---|---|
-| triage_time | 첫 Backlog → 첫 Unstarted | 아이디어 구체화 시간 |
-| cycle_time | 첫 Started → 첫 Completed | 실제 작업 소요 시간 |
-| lead_time | 생성 시점 → 첫 Completed | 전체 소요 시간 |
-| wait_time | lead_time - cycle_time | 대기 시간 |
-| flow_efficiency | cycle_time / lead_time | 대기 비율 |
-| throughput | 기간당 Completed 태스크 수 | 처리량 |
-| rework_rate | Completed→Started 전환 발생 태스크 / 전체 완료 | 재작업 비율 |
-| first_time_done_rate | rework 없이 완료된 비율 | 첫 구현 품질 |
-| issue_age | 현재 시각 - created_at (미완료) | 방치된 백로그 감지 |
-| task_size | 관련 세션의 변경 라인/파일 수 | 작업 크기 |
-| cost_per_task | 관련 세션의 토큰 합산 | 비용 효율 |
-| session_count | 태스크에 관여한 세션 수 | 작업 분산도 |
+| triage_time | 첫 Backlog → 첫 Unstarted | task_events |
+| cycle_time | 첫 Started → 첫 Completed | task_events |
+| lead_time | 생성 시점 → 첫 Completed | task_events |
+| wait_time | lead_time - cycle_time | 파생 |
+| flow_efficiency | cycle_time / lead_time | 파생 |
+| throughput | 기간당 Completed 태스크 수 | task_events |
+| rework_rate | Completed→Started 전환 발생 태스크 / 전체 완료 | task_events |
+| first_time_done_rate | rework 없이 완료된 비율 | task_events |
+| issue_age | 현재 시각 - created_at (미완료) | tasks |
+| task_size | 변경 라인/파일 수 | git diff (태스크 ID = 브랜치 이름) |
+| cost_per_task | 시간 범위 내 토큰 합산 | transcript 파싱 (message.usage) |
+
+### 세션 프록시 지표 (태스크 단위로 집계)
+
+태스크의 Started~Completed 시간 범위 내 tool_uses/tool_failures에서 계산.
+
+| 지표 | 의미 |
+|---|---|
+| read_before_edit_ratio | 편집 전 파일을 읽었는가 |
+| doom_loop_count | 같은 파일을 5회 이상 수정했는가 |
+| test_invoked | 테스트를 실행했는가 |
+| build_invoked | 빌드를 실행했는가 |
+| lint_invoked | 린트를 실행했는가 |
+| typecheck_invoked | 타입체크를 실행했는가 |
+| tool_call_count | 총 도구 호출 수 |
+| bash_error_rate | bash 에러 비율 |
+
+### 제외
+
+| 지표 | 제외 사유 |
+|---|---|
+| session_count | 세션-태스크 매핑 없이 의미 없음 |
+
+### 데이터 소스별 연결 방식
+
+- **task_events**: 태스크 상태 전환 timestamp로 직접 계산
+- **tool_uses/tool_failures**: 태스크의 Started~Completed 시간 범위 내 tool_uses에서 고유 session_id를 추출하여 태스크별로 분리. 같은 세션에서 여러 태스크 작업 시에만 겹침 발생 (실제로는 한 번에 하나의 태스크를 작업하는 워크플로우)
+- **git diff**: 브랜치 이름 = 태스크 ID (`SEO-1`). 매칭 브랜치 없으면 task_size 생략
+- **transcript 파싱**: tool_uses에서 추출한 session_id로 transcript 파일 경로 특정 (`~/.claude/projects/<hash>/<session_id>.jsonl`). 전체 스캔 불필요. `message.usage.input_tokens` + `output_tokens` 합산. `usage` 필드는 Anthropic API 스펙으로 안정적 (출시 이후 삭제/변경 없음, 추가만 발생)
 
 ---
 
@@ -261,11 +273,36 @@ seogi migrate
 
 기존 `~/seogi-logs/**/*.jsonl`을 SQLite로 변환.
 
+### 리포트 (태스크 중심)
+
+```
+seogi report --from <date> --to <date> [--project <name>] [--detail]
+```
+
+기본 출력: 요약 테이블
+
+```
+ID      TITLE              CYCLE    LEAD     TOKENS   SIZE    REWORK
+SEO-1   MCP 부트스트랩       2h30m    1d4h     45,230   +342    no
+SEO-2   MCP 도구 구현        3h15m    2d1h     62,100   +580    no
+SEO-3   MCP 등록+README     1h10m    6h       18,400   +120    no
+---
+throughput: 3 tasks    flow_efficiency(avg): 0.48    first_time_done: 100%
+```
+
+`--detail` 플래그: 태스크별 상세 출력
+
+```
+=== SEO-1: MCP 서버 부트스트랩 ===
+cycle_time: 2h 30m    lead_time: 1d 4h    flow_efficiency: 0.52
+tokens: 45,230 (input: 38,120 / output: 7,110)
+task_size: +342 -28 (5 files)
+test_invoked: true    doom_loop: 0    bash_error_rate: 0.02
+```
+
 ### 기존 명령어 (유지)
 
 ```
-seogi analyze <project> <session_id> [--transcript <path>] [--start-sha <sha>]
-seogi report --from <date> --to <date> [--project <name>]
 seogi changelog add <description>
 ```
 
@@ -335,9 +372,24 @@ MCP 도구:
 
 ### 4단계: 태스크 기반 성과 지표
 
-1. task_events + session_metrics 조인으로 지표 계산
-2. `seogi report`에 태스크 기반 지표 추가
-3. 아웃컴 지표 (토큰, git 데이터) 통합
+> `seogi report`를 세션 중심에서 태스크 중심으로 교체. `session_metrics` 테이블 제거.
+
+| Feature | 내용 | 의존성 |
+|---------|------|--------|
+| 20 (SEO-4) | `session_metrics` 테이블 DROP + `seogi analyze` 제거 — 스키마에서 테이블 삭제, analyze 서브커맨드/워크플로우/테스트 삭제, 세션 기반 report 워크플로우 삭제 | 없음 |
+| 21 (SEO-5) | 태스크 지표 도메인 — task_events 기반 지표 계산 순수 함수 9개 (cycle_time, lead_time, throughput 등) | 없음 |
+| 22 (SEO-6) | 프록시 지표의 태스크 단위 집계 — `SessionMetrics`를 시간 범위 기반 계산으로 변경, 태스크의 Started~Completed 구간 내 tool_uses/tool_failures에서 계산 | 20 |
+| 23 (SEO-7) | transcript 파싱 + cost_per_task — Claude Code transcript JSONL에서 `message.usage` 추출, 시간 범위 내 input_tokens + output_tokens 합산 | 없음 |
+| 24 (SEO-8) | task_size (git diff 기반) — 브랜치 이름 = 태스크 ID로 매칭, `git diff main...<task-id>`로 변경량 계산, 매칭 브랜치 없으면 생략 | 없음 |
+| 25 (SEO-9) | `seogi report` 태스크 중심 교체 — 모든 지표 통합 출력 (태스크 고유 + 프록시 + cost + size), 기존 세션 기반 report 대체 | 21, 22, 23, 24 |
+
+**결정 사항:**
+- 세션-태스크 매핑 불필요 — 시간 범위 기반으로 tool_uses/tool_failures 필터링
+- `session_metrics` 테이블 제거 — on-the-fly 계산으로 충분 (개인 도구, 세션 수 적음)
+- 토큰 데이터는 transcript 파싱으로 획득 — `message.usage.input_tokens` + `output_tokens` (API 스펙, 안정적)
+- `task_size`는 git diff 기반 — 브랜치 이름 = 태스크 ID (`SEO-1`), 매칭 브랜치 없으면 생략
+- `session_count` 제외 — 세션-태스크 매핑 없이 의미 없음
+- `seogi report`를 태스크 중심으로 완전 교체 — 세션 프록시 지표도 태스크 시간 범위로 집계
 
 ---
 
@@ -351,3 +403,8 @@ MCP 도구:
 - MCP 서버: CLI와 같은 서비스 인터페이스 사용. seogi 바이너리에 포함.
 - 에이전트 태스크 생성: description을 자세히 작성. title/description 업데이트 가능.
 - 에이전트 상태 전환: done 포함 모든 전환 허용.
+- 세션-태스크 매핑: 불필요. 시간 범위 기반으로 추적. Claude Code가 MCP/훅에 session_id를 제공하지 않으며, 세션 ≠ 태스크 (1:1 대응 아님).
+- session_metrics 테이블: 제거. on-the-fly 계산으로 충분.
+- 토큰 메트릭: transcript JSONL의 `message.usage` 파싱. `usage` 필드는 Anthropic API 스펙으로 안정적.
+- task_size: git diff 기반. 브랜치 이름 = 태스크 ID. 매칭 브랜치 없으면 생략.
+- 리포트: `seogi report`를 세션 중심에서 태스크 중심으로 완전 교체.
