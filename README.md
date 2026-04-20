@@ -1,22 +1,10 @@
-# Seogi (서기)
+# Seogi
 
-하니스 엔지니어링을 위한 계측 도구 프레임워크. Claude Code 세션의 도구 사용 패턴을 자동으로 수집하고 분석한다.
+하니스 엔지니어링을 위한 계측 도구 프레임워크.
 
-## 기능
-
-- 실시간 도구 사용 로깅 (JSONL 형식)
-- 도구 실패 로깅 (PostToolUseFailure)
-- 세션 종료 시 프록시 지표 10개 자동 산출
-- 프로젝트별 로그 파일 분리
-- 자동 파일 롤오버 (기본 10MB)
+Claude Code의 하니스(CLAUDE.md, 스킬, 훅, MCP 서버 등) 성능을 정량적으로 측정하고, 하니스 변경 전후의 업무 효율을 비교할 수 있는 데이터를 자동으로 수집한다.
 
 ## 설치
-
-### 사전 요구사항
-
-- `jq` — macOS: `brew install jq` / Ubuntu: `apt install jq`
-
-### 설치
 
 ```bash
 git clone git@github.com:joowankim/seogi.git
@@ -24,62 +12,91 @@ cd seogi
 ./install.sh
 ```
 
-### 설치 확인
+install.sh는 다음을 수행한다:
+
+1. `~/.seogi/` 디렉토리 생성
+2. `cargo install`로 seogi 바이너리 설치
+3. `~/.claude/settings.json`에 Claude Code 훅 등록
+4. `~/.claude.json`에 MCP 서버 등록
+
+### 요구 사항
+
+- Rust 툴체인 (`cargo`)
+- `jq` — macOS: `brew install jq` / Ubuntu: `apt install jq`
+
+## CLI 명령어
+
+### 프로젝트 관리
 
 ```bash
-# 1. 파일 배포 확인
-ls ~/.seogi/hooks/
-# pre-tool.sh  post-tool.sh  post-tool-failure.sh  notification.sh  stop.sh
-
-# 2. 훅 등록 확인
-jq '.hooks | keys' ~/.claude/settings.json
-# ["Notification", "PostToolUse", "PostToolUseFailure", "PreToolUse", "Stop"]
-
-# 3. 로그 디렉토리 확인
-ls ~/seogi-logs/
+seogi project create --name "MyProject" --goal "project goal"
+seogi project list [--json]
 ```
 
-## 설정
+### 상태 관리
 
-`~/.seogi/config.json` 파일을 편집하세요:
+```bash
+seogi status create --category <category> --name <name>
+seogi status list [--json]
+seogi status update --id <id> --name <new_name>
+seogi status delete --id <id>
+```
+
+### 태스크 관리
+
+```bash
+seogi task create --project <name> --title <title> --description <desc> --label <label>
+seogi task list [--project <name>] [--status <name>] [--label <label>] [--json]
+seogi task update --task-id <id> [--title <title>] [--description <desc>] [--label <label>]
+seogi task move --task-id <id> --status <name>
+```
+
+### 세션 분석
+
+```bash
+seogi analyze <session_id>           # 세션 프록시 지표 계산
+seogi report --from <date> --to <date> [--project <name>]  # 기간별 리포트
+```
+
+### 기타
+
+```bash
+seogi changelog add --description <text>   # 하니스 변경 이력 기록
+seogi migrate                              # JSONL 로그를 SQLite로 마이그레이션
+seogi hook <name>                          # Claude Code 훅 (자동 호출)
+seogi mcp-server                           # MCP 서버 (stdio transport)
+```
+
+## MCP 서버
+
+seogi는 MCP(Model Context Protocol) 서버로 동작하여 Claude Code 에이전트가 세션 중 태스크를 직접 관리할 수 있다.
+
+### 제공 도구
+
+| 도구 | 설명 |
+|---|---|
+| `project_create` | 프로젝트 생성 |
+| `project_list` | 프로젝트 목록 조회 |
+| `status_create` | 상태 생성 |
+| `status_list` | 상태 목록 조회 |
+| `status_update` | 상태 이름 변경 |
+| `status_delete` | 상태 삭제 |
+| `task_create` | 태스크 생성 |
+| `task_list` | 태스크 목록 조회 (필터 지원) |
+| `task_update` | 태스크 수정 |
+| `task_move` | 태스크 상태 전환 |
+
+### 수동 등록
+
+install.sh를 사용하지 않고 직접 등록하려면 `~/.claude.json`에 추가:
 
 ```json
 {
-  "logDir": "~/seogi-logs",
-  "maxFileSizeMB": 10
-}
-```
-
-| 설정 | 설명 | 기본값 |
-|------|------|--------|
-| `logDir` | 로그 저장 디렉토리 | `~/seogi-logs` |
-| `maxFileSizeMB` | 파일 롤오버 크기 (MB) | `10` |
-
-## 로그 형식
-
-로그는 JSONL (JSON Lines) 형식으로 저장됩니다:
-
-```
-~/seogi-logs/
-  └── {프로젝트명}/
-      ├── 2026-01-30.jsonl
-      ├── 2026-01-30_001.jsonl  (롤오버)
-      └── ...
-```
-
-각 로그 엔트리:
-
-```json
-{
-  "timestamp": "2026-01-30T14:23:45.000Z",
-  "sessionId": "abc123",
-  "project": "my-project",
-  "projectPath": "/path/to/my-project",
-  "role": "assistant",
-  "content": "메시지 내용...",
-  "tool": {
-    "name": "Edit",
-    "duration_ms": 1523
+  "mcpServers": {
+    "seogi": {
+      "command": "seogi",
+      "args": ["mcp-server"]
+    }
   }
 }
 ```
@@ -87,15 +104,16 @@ ls ~/seogi-logs/
 ## 제거
 
 ```bash
-cd seogi
 ./uninstall.sh
 ```
 
-로그 파일은 보존됩니다. 완전 삭제:
+uninstall.sh는 다음을 수행한다:
 
-```bash
-rm -rf ~/seogi-logs
-```
+1. `~/.claude/settings.json`에서 seogi 훅 제거
+2. `~/.claude.json`에서 MCP 서버 설정 제거
+3. `~/.seogi/` 디렉토리 삭제
+
+로그 파일(`~/seogi-logs/`)은 보존된다. 완전 삭제: `rm -rf ~/seogi-logs`
 
 ## 라이선스
 
