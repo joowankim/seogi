@@ -27,7 +27,20 @@ if [[ -f "$CLAUDE_SETTINGS" ]]; then
   echo "$UPDATED_SETTINGS" > "$CLAUDE_SETTINGS"
 fi
 
-# 2. seogi 디렉토리 제거
+# 2. Claude Code에서 MCP 서버 설정 제거
+CLAUDE_JSON="$HOME/.claude.json"
+if [[ -f "$CLAUDE_JSON" ]]; then
+  echo "Removing MCP server from Claude Code settings..."
+  UPDATED_MCP=$(jq '
+    if .mcpServers then
+      del(.mcpServers.seogi) |
+      if .mcpServers == {} then del(.mcpServers) else . end
+    else . end
+  ' "$CLAUDE_JSON")
+  echo "$UPDATED_MCP" > "$CLAUDE_JSON"
+fi
+
+# 3. seogi 디렉토리 제거
 if [[ -d "$SEOGI_DIR" ]]; then
   echo "Removing $SEOGI_DIR..."
   rm -rf "$SEOGI_DIR"

@@ -93,6 +93,17 @@ else
   }' > "$CLAUDE_SETTINGS"
 fi
 
+# 4. Claude Code에 MCP 서버 등록
+CLAUDE_JSON="$HOME/.claude.json"
+echo "Registering MCP server..."
+
+if [[ -f "$CLAUDE_JSON" ]]; then
+  UPDATED_MCP=$(jq '.mcpServers = (.mcpServers // {}) | .mcpServers.seogi = {"command": "seogi", "args": ["mcp-server"]}' "$CLAUDE_JSON")
+  echo "$UPDATED_MCP" > "$CLAUDE_JSON"
+else
+  jq -n '{"mcpServers": {"seogi": {"command": "seogi", "args": ["mcp-server"]}}}' > "$CLAUDE_JSON"
+fi
+
 echo ""
 echo "✓ seogi installed successfully!"
 echo ""
