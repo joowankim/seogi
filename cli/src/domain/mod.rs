@@ -6,5 +6,6 @@ pub mod project;
 pub mod status;
 pub mod task;
 pub mod task_metrics;
+pub mod task_size;
 pub mod token_usage;
 pub mod value;
