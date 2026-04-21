@@ -9,3 +9,4 @@ pub mod status_repo;
 pub mod task_event_repo;
 pub mod task_repo;
 pub mod timing;
+pub mod transcript;
