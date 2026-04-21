@@ -1,6 +1,7 @@
 pub mod changelog_repo;
 pub mod db;
 pub mod error;
+pub mod git;
 pub mod hook_error;
 pub mod log_repo;
 pub mod mapper;

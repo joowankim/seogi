@@ -2,7 +2,7 @@ use std::path::Path;
 use std::process::Command;
 
 use super::error::AdapterError;
-use crate::domain::task_size::{parse_diff_stat, TaskSize};
+use crate::domain::task_size::{TaskSize, parse_diff_stat};
 
 /// 태스크 브랜치의 변경량을 계산한다.
 ///
