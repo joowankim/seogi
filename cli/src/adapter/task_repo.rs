@@ -108,6 +108,35 @@ pub fn find_by_id(conn: &Connection, id: &str) -> rusqlite::Result<Option<TaskRo
     rows.next().transpose()
 }
 
+/// 태스크의 `created_at` (RFC3339 문자열)을 조회한다.
+///
+/// # Errors
+///
+/// SELECT 실패 시 `rusqlite::Error`.
+pub fn find_created_at(conn: &Connection, task_id: &str) -> rusqlite::Result<Option<String>> {
+    let mut stmt = conn.prepare("SELECT created_at FROM tasks WHERE id = ?1")?;
+    let mut rows = stmt.query_map([task_id], |row| row.get::<_, String>(0))?;
+    rows.next().transpose()
+}
+
+/// 태스크 ID에서 title과 project name을 조회한다.
+///
+/// # Errors
+///
+/// SELECT 실패 시 `rusqlite::Error`.
+pub fn find_title_and_project(
+    conn: &Connection,
+    task_id: &str,
+) -> rusqlite::Result<Option<(String, String)>> {
+    let mut stmt = conn.prepare(
+        "SELECT t.title, p.name FROM tasks t JOIN projects p ON t.project_id = p.id WHERE t.id = ?1",
+    )?;
+    let mut rows = stmt.query_map([task_id], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
+    rows.next().transpose()
+}
+
 /// 태스크의 `status_id`와 `updated_at`을 변경한다. 변경된 행이 있으면 true.
 ///
 /// # Errors

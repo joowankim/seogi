@@ -44,6 +44,21 @@ enum Commands {
         #[command(subcommand)]
         action: HookAction,
     },
+    /// 태스크 기반 성과 리포트
+    Report {
+        /// 시작 날짜 (YYYY-MM-DD)
+        #[arg(long)]
+        from: String,
+        /// 종료 날짜 (YYYY-MM-DD)
+        #[arg(long)]
+        to: String,
+        /// 프로젝트 이름 필터
+        #[arg(long)]
+        project: Option<String>,
+        /// 상세 출력
+        #[arg(long)]
+        detail: bool,
+    },
     /// MCP 서버 (stdio transport)
     McpServer,
 }
@@ -281,6 +296,18 @@ fn main() -> Result<()> {
                     seogi::entrypoint::task::move_task(&conn, &task_id, &status)?;
                 }
             }
+        }
+        Commands::Report {
+            from,
+            to,
+            project,
+            detail,
+        } => {
+            let conn = open_db()?;
+            let output =
+                seogi::workflow::report::run(&conn, &from, &to, project.as_deref(), detail)
+                    .map_err(|e| anyhow::anyhow!("Failed to generate report: {e}"))?;
+            print!("{output}");
         }
         Commands::McpServer => {
             seogi::entrypoint::mcp::run()?;

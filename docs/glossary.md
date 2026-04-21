@@ -39,6 +39,20 @@
 - **tool_call_count:** 세션 내 전체 도구 호출 수.
 - **typecheck_invoked:** Bash 명령어에 타입체크 도구(tsc --noEmit, mypy, pyright) 패턴이 존재하는지 여부.
 
+## 태스크 지표
+
+task_events 기반으로 태스크 단위 성과를 측정하는 9개 지표. `domain/task_metrics.rs`의 순수 함수로 계산.
+
+- **triage_time:** 첫 Backlog 카테고리 도착 → 첫 Unstarted 카테고리 도착까지의 시간 간격. 태스크 구체화에 소요된 시간을 나타낸다. `Option<Ms>`.
+- **cycle_time:** 첫 Started 카테고리 도착 → 첫 Completed 카테고리 도착까지의 시간 간격. 실제 작업에 소요된 시간. `Option<Ms>`.
+- **lead_time:** 태스크 생성 시점(`created_at`) → 첫 Completed 도착까지의 전체 경과 시간. `Option<Ms>`.
+- **wait_time:** `lead_time - cycle_time`. 작업 시작 전 대기 시간. `Option<Ms>`, 파생 지표.
+- **flow_efficiency:** `cycle_time / lead_time`. 전체 리드 타임 중 실제 작업 비율. 0.0~1.0 범위. `Option<f64>`, 파생 지표.
+- **throughput:** 지정 기간 내 Completed 카테고리로 전환된 고유 태스크 수. `u32`.
+- **rework_rate:** Completed→Started 전환(재작업)이 발생한 태스크 수 / 전체 완료 태스크 수. `f64`.
+- **first_time_done_rate:** 재작업 없이 한 번에 완료된 태스크 비율. `1.0 - rework_rate`과 동치. `f64`.
+- **issue_age:** 현재 시각 - 태스크 생성 시점. 미완료(Completed/Canceled 아닌) 태스크에만 적용. `Option<Ms>`.
+
 ## 프로젝트 고유 개념
 
 - **CLI_SESSION_ID:** CLI에서 생성한 `TaskEvent`의 `session_id`로 사용되는 도메인 상수. 값은 `"CLI"`.
