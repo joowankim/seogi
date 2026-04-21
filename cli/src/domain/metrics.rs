@@ -3,8 +3,41 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
+use serde::Serialize;
+
 use super::log::{ToolFailure, ToolUse};
 use super::value::Ms;
+
+/// 태스크의 Started~Completed 시간 범위 내 프록시 지표 8개.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct TaskProxyMetrics {
+    pub read_before_edit_ratio: u32,
+    pub doom_loop_count: u32,
+    pub test_invoked: bool,
+    pub build_invoked: bool,
+    pub lint_invoked: bool,
+    pub typecheck_invoked: bool,
+    pub tool_call_count: u32,
+    pub bash_error_rate: f64,
+}
+
+/// `ToolUse`와 `ToolFailure` 슬라이스에서 8개 프록시 지표를 계산한다.
+///
+/// 순수 함수. I/O 없음.
+#[must_use]
+pub fn calculate(tool_uses: &[ToolUse], tool_failures: &[ToolFailure]) -> TaskProxyMetrics {
+    TaskProxyMetrics {
+        read_before_edit_ratio: calc_read_before_edit(tool_uses),
+        doom_loop_count: calc_doom_loop_count(tool_uses),
+        test_invoked: calc_invoked(tool_uses, &TEST_PATTERN),
+        build_invoked: calc_invoked(tool_uses, &BUILD_PATTERN),
+        lint_invoked: calc_invoked(tool_uses, &LINT_PATTERN),
+        typecheck_invoked: calc_invoked(tool_uses, &TYPECHECK_PATTERN),
+        tool_call_count: tool_uses.len() as u32,
+        bash_error_rate: calc_bash_error_rate(tool_uses, tool_failures),
+    }
+}
 
 pub static TEST_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\b(test|vitest|playwright|jest|pytest|mocha|karma)\b")
@@ -269,6 +302,41 @@ mod tests {
     fn test_bash_error_rate_no_bash() {
         let uses = vec![make_tool_use("Read", "{}", 1000)];
         assert!((calc_bash_error_rate(&uses, &[]) - 0.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_calculate_empty() {
+        let m = calculate(&[], &[]);
+        assert_eq!(m.read_before_edit_ratio, 0);
+        assert_eq!(m.doom_loop_count, 0);
+        assert!(!m.test_invoked);
+        assert!(!m.build_invoked);
+        assert!(!m.lint_invoked);
+        assert!(!m.typecheck_invoked);
+        assert_eq!(m.tool_call_count, 0);
+        assert!((m.bash_error_rate - 0.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_calculate_all_metrics() {
+        let uses = vec![
+            make_tool_use("Read", "{}", 1000),
+            make_tool_use("Grep", "{}", 2000),
+            make_tool_use("Edit", r#"{"file_path":"a.rs"}"#, 3000),
+            make_tool_use("Bash", r#"{"command":"cargo test"}"#, 4000),
+            make_tool_use("Bash", r#"{"command":"cargo build"}"#, 5000),
+        ];
+        let failures = vec![make_failure("Bash", 4000)];
+
+        let m = calculate(&uses, &failures);
+        assert_eq!(m.read_before_edit_ratio, 2);
+        assert_eq!(m.doom_loop_count, 0);
+        assert!(m.test_invoked);
+        assert!(m.build_invoked);
+        assert!(!m.lint_invoked);
+        assert!(!m.typecheck_invoked);
+        assert_eq!(m.tool_call_count, 5);
+        assert!((m.bash_error_rate - 0.5).abs() < f64::EPSILON);
     }
 
     #[test]
