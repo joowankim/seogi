@@ -94,11 +94,11 @@ pub fn transcript_path(project_path: &str, session_id: &str) -> PathBuf {
 pub fn read_token_usage(project_path: &str, session_id: &str) -> Result<TokenUsage, AdapterError> {
     let path = transcript_path(project_path, session_id);
 
-    if !path.exists() {
-        return Ok(TokenUsage::zero());
-    }
-
-    let file = std::fs::File::open(&path)?;
+    let file = match std::fs::File::open(&path) {
+        Ok(f) => f,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(TokenUsage::zero()),
+        Err(e) => return Err(e.into()),
+    };
     let reader = std::io::BufReader::new(file);
     parse_token_usage(reader)
 }
