@@ -91,10 +91,7 @@ pub fn transcript_path(project_path: &str, session_id: &str) -> PathBuf {
 /// # Errors
 ///
 /// Returns `AdapterError::Io` if the file exists but cannot be read.
-pub fn read_token_usage(
-    project_path: &str,
-    session_id: &str,
-) -> Result<TokenUsage, AdapterError> {
+pub fn read_token_usage(project_path: &str, session_id: &str) -> Result<TokenUsage, AdapterError> {
     let path = transcript_path(project_path, session_id);
 
     if !path.exists() {
