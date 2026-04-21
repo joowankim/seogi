@@ -9,8 +9,9 @@ const SCHEMA_SQL: &str = include_str!("sql/schema.sql");
 const SEED_SQL: &str = include_str!("sql/seed.sql");
 const MIGRATION_V2_TO_V3: &str = include_str!("sql/migration_v2_to_v3.sql");
 const MIGRATION_V3_TO_V4: &str = include_str!("sql/migration_v3_to_v4.sql");
+const MIGRATION_V4_TO_V5: &str = include_str!("sql/migration_v4_to_v5.sql");
 
-const SCHEMA_VERSION: i64 = 4;
+const SCHEMA_VERSION: i64 = 5;
 
 fn apply_schema(conn: &Connection) -> Result<(), AdapterError> {
     conn.execute_batch(SCHEMA_SQL)?;
@@ -34,6 +35,9 @@ fn setup_connection(conn: Connection) -> Result<Connection, AdapterError> {
         }
         if version == 3 {
             conn.execute_batch(MIGRATION_V3_TO_V4)?;
+        }
+        if version < 5 {
+            conn.execute_batch(MIGRATION_V4_TO_V5)?;
         }
         apply_schema(&conn)?;
         conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
@@ -83,10 +87,9 @@ mod tests {
         .unwrap();
     }
 
-    const EXPECTED_TABLES: [&str; 9] = [
+    const EXPECTED_TABLES: [&str; 8] = [
         "changelog",
         "projects",
-        "session_metrics",
         "statuses",
         "system_events",
         "task_events",
@@ -256,31 +259,6 @@ mod tests {
                 ("project_path", "TEXT", true),
                 ("event_type", "TEXT", true),
                 ("content", "TEXT", true),
-                ("timestamp", "INTEGER", true),
-            ],
-        );
-    }
-
-    #[test]
-    fn test_schema_columns_session_metrics() {
-        let conn = initialize_in_memory().unwrap();
-        assert_table_columns(
-            &conn,
-            "session_metrics",
-            &[
-                ("id", "TEXT", false),
-                ("session_id", "TEXT", true),
-                ("project", "TEXT", true),
-                ("read_before_edit_ratio", "INTEGER", true),
-                ("doom_loop_count", "INTEGER", true),
-                ("test_invoked", "INTEGER", true),
-                ("build_invoked", "INTEGER", true),
-                ("lint_invoked", "INTEGER", true),
-                ("typecheck_invoked", "INTEGER", true),
-                ("tool_call_count", "INTEGER", true),
-                ("session_duration_ms", "INTEGER", true),
-                ("edit_files", "TEXT", true),
-                ("bash_error_rate", "REAL", true),
                 ("timestamp", "INTEGER", true),
             ],
         );

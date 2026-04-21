@@ -17,23 +17,6 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// 세션 로그에서 메트릭을 계산하여 JSON 출력
-    Analyze {
-        /// 세션 ID
-        session_id: String,
-    },
-    /// 기간별 메트릭 집계 리포트
-    Report {
-        /// 시작 날짜 (YYYY-MM-DD)
-        #[arg(long)]
-        from: String,
-        /// 종료 날짜 (YYYY-MM-DD)
-        #[arg(long)]
-        to: String,
-        /// 프로젝트 이름 (생략 시 전체)
-        #[arg(long)]
-        project: Option<String>,
-    },
     /// 하니스 변경 이력 관리
     Changelog {
         #[command(subcommand)]
@@ -208,22 +191,6 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Analyze { session_id } => {
-            let conn = open_db()?;
-            let metrics = seogi::workflow::analyze::run(&conn, &session_id)
-                .map_err(|e| anyhow::anyhow!("Failed to analyze session: {e}"))?;
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&metrics)
-                    .map_err(|e| anyhow::anyhow!("Failed to serialize metrics: {e}"))?
-            );
-        }
-        Commands::Report { from, to, project } => {
-            let conn = open_db()?;
-            let output = seogi::workflow::report::run(&conn, &from, &to, project.as_deref())
-                .map_err(|e| anyhow::anyhow!("Failed to generate report: {e}"))?;
-            print!("{output}");
-        }
         Commands::Changelog { action } => match action {
             ChangelogAction::Add { description } => {
                 let conn = open_db()?;

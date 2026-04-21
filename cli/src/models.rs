@@ -29,34 +29,6 @@ pub struct LogEntry {
     pub tool: Option<ToolInfo>,
 }
 
-/// 세션 메트릭 (분석기 출력)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionMetricsEntry {
-    pub timestamp: String,
-    pub session_id: String,
-    pub project: String,
-    pub metrics: SessionMetrics,
-}
-
-/// 프록시 지표 10개
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SessionMetrics {
-    pub read_before_edit_ratio: u32,
-    pub doom_loop_count: u32,
-    pub test_invoked: bool,
-    pub build_invoked: bool,
-    pub tool_call_count: u32,
-    pub session_duration_ms: i64,
-    pub edit_files: Vec<String>,
-    #[serde(default)]
-    pub lint_invoked: Option<bool>,
-    #[serde(default)]
-    pub typecheck_invoked: Option<bool>,
-    #[serde(default)]
-    pub bash_error_rate: Option<f64>,
-}
-
 /// 하니스 변경 이력
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChangelogEntry {
@@ -91,24 +63,6 @@ mod tests {
         let tool = entry.tool.unwrap();
         assert_eq!(tool.failed, Some(true));
         assert_eq!(tool.error.as_deref(), Some("exit code 1"));
-    }
-
-    #[test]
-    fn deserialize_metrics_with_all_fields() {
-        let json = r#"{"timestamp":"2026-04-08T12:00:00.000Z","sessionId":"abc","project":"locs","metrics":{"read_before_edit_ratio":5,"doom_loop_count":0,"test_invoked":true,"build_invoked":false,"tool_call_count":42,"session_duration_ms":180000,"edit_files":["a.rs","b.rs"],"lint_invoked":false,"typecheck_invoked":true,"bash_error_rate":0.1}}"#;
-        let entry: SessionMetricsEntry = serde_json::from_str(json).unwrap();
-        assert_eq!(entry.metrics.tool_call_count, 42);
-        assert_eq!(entry.metrics.lint_invoked, Some(false));
-        assert_eq!(entry.metrics.bash_error_rate, Some(0.1));
-    }
-
-    #[test]
-    fn deserialize_metrics_without_new_fields() {
-        let json = r#"{"timestamp":"2026-04-07T12:00:00.000Z","sessionId":"abc","project":"locs","metrics":{"read_before_edit_ratio":3,"doom_loop_count":1,"test_invoked":false,"build_invoked":false,"tool_call_count":10,"session_duration_ms":5000,"edit_files":[]}}"#;
-        let entry: SessionMetricsEntry = serde_json::from_str(json).unwrap();
-        assert!(entry.metrics.lint_invoked.is_none());
-        assert!(entry.metrics.typecheck_invoked.is_none());
-        assert!(entry.metrics.bash_error_rate.is_none());
     }
 
     #[test]
