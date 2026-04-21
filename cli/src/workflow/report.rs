@@ -121,17 +121,7 @@ pub fn run(
         let task_size = git::diff_stat(&cwd, task_id).unwrap_or(None);
 
         // rework 여부
-        let has_rework = events.windows(2).any(|pair| {
-            let from_cat = status_map
-                .iter()
-                .find(|(name, _)| name == pair[0].to_status())
-                .map(|(_, cat)| *cat);
-            let to_cat = status_map
-                .iter()
-                .find(|(name, _)| name == pair[1].to_status())
-                .map(|(_, cat)| *cat);
-            from_cat == Some(StatusCategory::Completed) && to_cat == Some(StatusCategory::Started)
-        });
+        let has_rework = task_metrics::has_rework(&events, &status_map);
 
         reports.push(TaskReport {
             id: task_id.clone(),
@@ -149,8 +139,7 @@ pub fn run(
     }
 
     // aggregate metrics
-    let completed_only = task_event_repo::list_completed_in_range(conn, from_ms, to_ms)?;
-    let tp = task_metrics::throughput(&completed_only);
+    let tp = task_metrics::throughput(&completed_events);
     let group_refs: Vec<&[crate::domain::task::TaskEvent]> =
         all_event_groups.iter().map(Vec::as_slice).collect();
     let ftd_rate = task_metrics::first_time_done_rate(&group_refs, &status_map);
@@ -173,35 +162,23 @@ pub fn run(
     Ok(format!("{output}\n"))
 }
 
+/// Started~Completed 시간 범위(밀리초)를 반환한다.
+fn started_completed_range(
+    events: &[crate::domain::task::TaskEvent],
+    status_map: &[(String, StatusCategory)],
+) -> Option<(i64, i64)> {
+    let start = task_metrics::first_transition_to(events, StatusCategory::Started, status_map)?;
+    let end = task_metrics::first_transition_to(events, StatusCategory::Completed, status_map)?;
+    Some((start.value(), end.value()))
+}
+
 /// Started~Completed 시간 범위에서 프록시 지표를 계산한다.
 fn compute_proxy(
     conn: &Connection,
     events: &[crate::domain::task::TaskEvent],
     status_map: &[(String, StatusCategory)],
 ) -> Result<Option<crate::domain::metrics::TaskProxyMetrics>, anyhow::Error> {
-    let started_ts = events
-        .iter()
-        .find(|e| {
-            status_map
-                .iter()
-                .find(|(name, _)| name == e.to_status())
-                .map(|(_, cat)| *cat)
-                == Some(StatusCategory::Started)
-        })
-        .map(|e| e.timestamp().value());
-
-    let completed_ts = events
-        .iter()
-        .find(|e| {
-            status_map
-                .iter()
-                .find(|(name, _)| name == e.to_status())
-                .map(|(_, cat)| *cat)
-                == Some(StatusCategory::Completed)
-        })
-        .map(|e| e.timestamp().value());
-
-    let (Some(start), Some(end)) = (started_ts, completed_ts) else {
+    let Some((start, end)) = started_completed_range(events, status_map) else {
         return Ok(None);
     };
 
@@ -217,29 +194,7 @@ fn compute_tokens(
     events: &[crate::domain::task::TaskEvent],
     status_map: &[(String, StatusCategory)],
 ) -> Result<Option<TokenUsage>, anyhow::Error> {
-    let started_ts = events
-        .iter()
-        .find(|e| {
-            status_map
-                .iter()
-                .find(|(name, _)| name == e.to_status())
-                .map(|(_, cat)| *cat)
-                == Some(StatusCategory::Started)
-        })
-        .map(|e| e.timestamp().value());
-
-    let completed_ts = events
-        .iter()
-        .find(|e| {
-            status_map
-                .iter()
-                .find(|(name, _)| name == e.to_status())
-                .map(|(_, cat)| *cat)
-                == Some(StatusCategory::Completed)
-        })
-        .map(|e| e.timestamp().value());
-
-    let (Some(start), Some(end)) = (started_ts, completed_ts) else {
+    let Some((start, end)) = started_completed_range(events, status_map) else {
         return Ok(None);
     };
 
@@ -269,11 +224,12 @@ fn compute_tokens(
 mod tests {
     use super::*;
     use crate::adapter::db::initialize_in_memory;
-    use crate::adapter::{project_repo, status_repo, task_event_repo, task_repo};
+    use crate::adapter::{log_repo, project_repo, status_repo, task_event_repo, task_repo};
+    use crate::domain::log::ToolUse;
     use crate::domain::project::{Project, ProjectPrefix};
     use crate::domain::status::StatusCategory;
     use crate::domain::task::{Label, Task, TaskEvent};
-    use crate::domain::value::Timestamp;
+    use crate::domain::value::{Ms, SessionId, Timestamp};
 
     fn setup_with_completed_task(conn: &Connection) {
         let prefix = ProjectPrefix::new("SEO").unwrap();
@@ -406,5 +362,141 @@ mod tests {
 
         let result = run(&conn, "1970-01-01", "1970-12-31", Some("Seogi"), false).unwrap();
         assert!(result.contains("SEO-1"));
+    }
+
+    fn setup_with_tool_uses(conn: &Connection) {
+        setup_with_completed_task(conn);
+
+        let tu = ToolUse::new(
+            "tu-1".to_string(),
+            SessionId::new("sess-1"),
+            "seogi".to_string(),
+            "/nonexistent/project".to_string(),
+            "Read".to_string(),
+            "{}".to_string(),
+            Ms::zero(),
+            Timestamp::new(3_000_000),
+        );
+        log_repo::save_tool_use(conn, &tu).unwrap();
+    }
+
+    #[test]
+    fn run_with_tool_uses_computes_proxy_and_tokens() {
+        let conn = initialize_in_memory().unwrap();
+        setup_with_tool_uses(&conn);
+
+        let result = run(&conn, "1970-01-01", "1970-12-31", None, true).unwrap();
+        // proxy metrics가 계산되어 detail 출력에 포함
+        assert!(result.contains("test_invoked:"));
+        assert!(result.contains("doom_loop:"));
+        // tokens: transcript 파일이 없으므로 zero → "—"이 아닌 "0" 출력
+        assert!(result.contains("tokens:"));
+    }
+
+    #[test]
+    fn compute_proxy_returns_none_without_started() {
+        let conn = initialize_in_memory().unwrap();
+        let statuses = status_repo::list_all(&conn).unwrap();
+        let status_map: Vec<(String, StatusCategory)> = statuses
+            .iter()
+            .map(|s| (s.name().to_string(), s.category()))
+            .collect();
+
+        // backlog만 있는 이벤트 (Started 없음)
+        let events = vec![TaskEvent::new(
+            "X-1",
+            None,
+            "backlog",
+            "CLI",
+            Timestamp::new(1000),
+        )];
+        let result = compute_proxy(&conn, &events, &status_map).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn run_with_duplicate_session_tool_uses() {
+        let conn = initialize_in_memory().unwrap();
+        setup_with_tool_uses(&conn);
+
+        let tu2 = ToolUse::new(
+            "tu-2".to_string(),
+            SessionId::new("sess-1"),
+            "seogi".to_string(),
+            "/nonexistent/project".to_string(),
+            "Edit".to_string(),
+            r#"{"file_path":"a.rs"}"#.to_string(),
+            Ms::zero(),
+            Timestamp::new(4_000_000),
+        );
+        log_repo::save_tool_use(&conn, &tu2).unwrap();
+
+        let result = run(&conn, "1970-01-01", "1970-12-31", None, true).unwrap();
+        assert!(result.contains("tokens:"));
+    }
+
+    #[test]
+    fn run_with_no_flow_efficiency_returns_dash() {
+        // Completed 이벤트만 있고 Started가 없는 태스크 → cycle_time=None → flow_efficiency=None
+        let conn = initialize_in_memory().unwrap();
+        let prefix = ProjectPrefix::new("TST").unwrap();
+        let project = Project::new("Test", &prefix, "goal", chrono::Utc::now()).unwrap();
+        project_repo::save(&conn, &project).unwrap();
+
+        let statuses = status_repo::list_all(&conn).unwrap();
+        let backlog = statuses
+            .iter()
+            .find(|s| s.category() == StatusCategory::Backlog)
+            .unwrap();
+
+        let task = Task::new(
+            &prefix,
+            1,
+            "no cycle",
+            "desc",
+            Label::Feature,
+            backlog.id(),
+            project.id(),
+            chrono::Utc::now(),
+        )
+        .unwrap();
+        task_repo::save(&conn, &task).unwrap();
+
+        // backlog → done 직접 전환 (Started 없음)
+        let e1 = TaskEvent::new("TST-1", None, "backlog", "CLI", Timestamp::new(1_000_000));
+        let e2 = TaskEvent::new(
+            "TST-1",
+            Some("backlog"),
+            "done",
+            "CLI",
+            Timestamp::new(5_000_000),
+        );
+        task_event_repo::save(&conn, &e1).unwrap();
+        task_event_repo::save(&conn, &e2).unwrap();
+
+        let result = run(&conn, "1970-01-01", "1970-12-31", None, false).unwrap();
+        assert!(result.contains("TST-1"));
+        // flow_efficiency(avg)가 "—"
+        assert!(result.contains("\u{2014}"));
+    }
+
+    #[test]
+    fn compute_tokens_returns_none_without_started() {
+        let conn = initialize_in_memory().unwrap();
+        let statuses = status_repo::list_all(&conn).unwrap();
+        let status_map: Vec<(String, StatusCategory)> = statuses
+            .iter()
+            .map(|s| (s.name().to_string(), s.category()))
+            .collect();
+
+        let events = vec![TaskEvent::new(
+            "X-1",
+            None,
+            "backlog",
+            "CLI",
+            Timestamp::new(1000),
+        )];
+        let result = compute_tokens(&conn, &events, &status_map).unwrap();
+        assert!(result.is_none());
     }
 }

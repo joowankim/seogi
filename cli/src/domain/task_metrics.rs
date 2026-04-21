@@ -14,7 +14,8 @@ fn resolve_category(status_name: &str, status_map: StatusMap<'_>) -> Option<Stat
 }
 
 /// 이벤트 중 `to_status`가 지정 카테고리에 해당하는 첫 이벤트의 timestamp를 반환한다.
-fn first_transition_to(
+#[must_use]
+pub fn first_transition_to(
     events: &[TaskEvent],
     category: StatusCategory,
     status_map: StatusMap<'_>,
@@ -89,7 +90,8 @@ pub fn throughput(completed_events: &[TaskEvent]) -> u32 {
 }
 
 /// Completed→Started 전환이 발생한 태스크가 있는지 확인.
-fn has_rework(events: &[TaskEvent], status_map: StatusMap<'_>) -> bool {
+#[must_use]
+pub fn has_rework(events: &[TaskEvent], status_map: StatusMap<'_>) -> bool {
     events.windows(2).any(|pair| {
         let from_cat = resolve_category(pair[0].to_status(), status_map);
         let to_cat = resolve_category(pair[1].to_status(), status_map);
