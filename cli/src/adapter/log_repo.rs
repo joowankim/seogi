@@ -128,6 +128,48 @@ pub fn list_system_events_by_session(
     Ok(rows)
 }
 
+/// 지정 시간 범위 내 `tool_uses`를 조회한다.
+///
+/// # Errors
+///
+/// DB 읽기 실패 시 `AdapterError::Database`.
+pub fn list_by_time_range(
+    conn: &Connection,
+    from_ts: i64,
+    to_ts: i64,
+) -> Result<Vec<ToolUse>, AdapterError> {
+    let mut stmt = conn.prepare(
+        "SELECT id, session_id, project, project_path, tool_name, tool_input, duration_ms, timestamp FROM tool_uses WHERE timestamp >= ?1 AND timestamp <= ?2 ORDER BY timestamp",
+    )?;
+
+    let rows = stmt
+        .query_map((from_ts, to_ts), mapper::tool_use_from_row)?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(rows)
+}
+
+/// 지정 시간 범위 내 `tool_failures`를 조회한다.
+///
+/// # Errors
+///
+/// DB 읽기 실패 시 `AdapterError::Database`.
+pub fn list_failures_by_time_range(
+    conn: &Connection,
+    from_ts: i64,
+    to_ts: i64,
+) -> Result<Vec<ToolFailure>, AdapterError> {
+    let mut stmt = conn.prepare(
+        "SELECT id, session_id, project, project_path, tool_name, error, timestamp FROM tool_failures WHERE timestamp >= ?1 AND timestamp <= ?2 ORDER BY timestamp",
+    )?;
+
+    let rows = stmt
+        .query_map((from_ts, to_ts), mapper::tool_failure_from_row)?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(rows)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -307,6 +349,72 @@ mod tests {
         let conn = db::initialize_in_memory().unwrap();
 
         let results = list_system_events_by_session(&conn, "nonexistent").unwrap();
+        assert!(results.is_empty());
+    }
+
+    fn make_tool_use_at(id: &str, ts: i64) -> ToolUse {
+        ToolUse::new(
+            id.to_string(),
+            SessionId::new("sess-1"),
+            "seogi".to_string(),
+            "/test".to_string(),
+            "Read".to_string(),
+            "{}".to_string(),
+            Ms::zero(),
+            Timestamp::new(ts),
+        )
+    }
+
+    fn make_tool_failure_at(id: &str, ts: i64) -> ToolFailure {
+        ToolFailure::new(
+            id.to_string(),
+            SessionId::new("sess-1"),
+            "seogi".to_string(),
+            "/test".to_string(),
+            "Bash".to_string(),
+            "error".to_string(),
+            Timestamp::new(ts),
+        )
+    }
+
+    #[test]
+    fn test_list_by_time_range_returns_in_range() {
+        let conn = db::initialize_in_memory().unwrap();
+        save_tool_use(&conn, &make_tool_use_at("id-1", 1000)).unwrap();
+        save_tool_use(&conn, &make_tool_use_at("id-2", 2000)).unwrap();
+        save_tool_use(&conn, &make_tool_use_at("id-3", 3000)).unwrap();
+
+        let results = list_by_time_range(&conn, 1000, 2000).unwrap();
+        assert_eq!(results.len(), 2);
+    }
+
+    #[test]
+    fn test_list_by_time_range_excludes_out_of_range() {
+        let conn = db::initialize_in_memory().unwrap();
+        save_tool_use(&conn, &make_tool_use_at("id-1", 1000)).unwrap();
+        save_tool_use(&conn, &make_tool_use_at("id-2", 5000)).unwrap();
+
+        let results = list_by_time_range(&conn, 2000, 4000).unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_list_failures_by_time_range_returns_in_range() {
+        let conn = db::initialize_in_memory().unwrap();
+        save_tool_failure(&conn, &make_tool_failure_at("f-1", 1000)).unwrap();
+        save_tool_failure(&conn, &make_tool_failure_at("f-2", 2000)).unwrap();
+        save_tool_failure(&conn, &make_tool_failure_at("f-3", 3000)).unwrap();
+
+        let results = list_failures_by_time_range(&conn, 1500, 3000).unwrap();
+        assert_eq!(results.len(), 2);
+    }
+
+    #[test]
+    fn test_list_failures_by_time_range_excludes_out_of_range() {
+        let conn = db::initialize_in_memory().unwrap();
+        save_tool_failure(&conn, &make_tool_failure_at("f-1", 1000)).unwrap();
+
+        let results = list_failures_by_time_range(&conn, 2000, 3000).unwrap();
         assert!(results.is_empty());
     }
 }

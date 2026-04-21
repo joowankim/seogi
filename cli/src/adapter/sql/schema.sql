@@ -66,6 +66,9 @@ CREATE TABLE IF NOT EXISTS system_events (
     timestamp       INTEGER NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_tool_uses_timestamp ON tool_uses(timestamp);
+CREATE INDEX IF NOT EXISTS idx_tool_failures_timestamp ON tool_failures(timestamp);
+
 DROP TABLE IF EXISTS session_metrics;
 
 CREATE TABLE IF NOT EXISTS changelog (
