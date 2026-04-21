@@ -9,14 +9,14 @@ use crate::domain::value::{SessionId, Timestamp};
 #[derive(Debug, Deserialize)]
 struct NotificationInput {
     session_id: String,
-    message: String,
+    message: Option<String>,
     cwd: String,
 }
 
 #[derive(Debug, Deserialize)]
 struct StopInput {
     session_id: String,
-    stop_reason: String,
+    stop_reason: Option<String>,
     cwd: String,
 }
 
@@ -41,7 +41,7 @@ pub fn run_notification(conn: &Connection, stdin_json: &str) -> Result<(), Adapt
         project,
         input.cwd,
         "Notification".to_string(),
-        input.message,
+        input.message.unwrap_or_default(),
         timestamp,
     );
 
@@ -72,7 +72,7 @@ pub fn run_stop(conn: &Connection, stdin_json: &str) -> Result<(), AdapterError>
         project,
         input.cwd,
         "Stop".to_string(),
-        input.stop_reason,
+        input.stop_reason.unwrap_or_default(),
         timestamp,
     );
 
@@ -151,7 +151,44 @@ mod tests {
     fn test_run_notification_missing_message() {
         let conn = db::initialize_in_memory().unwrap();
         let json = r#"{"session_id":"s1","cwd":"/test"}"#;
-        let result = run_notification(&conn, json);
-        assert!(matches!(result, Err(AdapterError::Json(_))));
+
+        run_notification(&conn, json).unwrap();
+
+        let results = log_repo::list_system_events_by_session(&conn, "s1").unwrap();
+        assert_eq!(results[0].content(), "");
+    }
+
+    #[test]
+    fn test_run_stop_null_stop_reason() {
+        let conn = db::initialize_in_memory().unwrap();
+        let json = r#"{"session_id":"s1","stop_reason":null,"cwd":"/test"}"#;
+
+        run_stop(&conn, json).unwrap();
+
+        let results = log_repo::list_system_events_by_session(&conn, "s1").unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].content(), "");
+    }
+
+    #[test]
+    fn test_run_stop_missing_stop_reason() {
+        let conn = db::initialize_in_memory().unwrap();
+        let json = r#"{"session_id":"s1","cwd":"/test"}"#;
+
+        run_stop(&conn, json).unwrap();
+
+        let results = log_repo::list_system_events_by_session(&conn, "s1").unwrap();
+        assert_eq!(results[0].content(), "");
+    }
+
+    #[test]
+    fn test_run_notification_null_message() {
+        let conn = db::initialize_in_memory().unwrap();
+        let json = r#"{"session_id":"s1","message":null,"cwd":"/test"}"#;
+
+        run_notification(&conn, json).unwrap();
+
+        let results = log_repo::list_system_events_by_session(&conn, "s1").unwrap();
+        assert_eq!(results[0].content(), "");
     }
 }

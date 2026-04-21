@@ -4,7 +4,7 @@ use std::path::Path;
 use crate::entrypoint::hooks;
 
 /// 훅 에러를 `~/.seogi/hook-errors.log`에 기록하고, 5분 쿨다운 후 macOS 알림을 보낸다.
-pub fn handle_hook_error(error: &dyn std::fmt::Display) {
+pub fn handle_hook_error(error: &dyn std::fmt::Debug) {
     let dir = hooks::seogi_dir();
     let _ = fs::create_dir_all(&dir);
 
@@ -14,10 +14,10 @@ pub fn handle_hook_error(error: &dyn std::fmt::Display) {
     }
 }
 
-fn log_error(seogi_dir: &Path, error: &dyn std::fmt::Display) {
+fn log_error(seogi_dir: &Path, error: &dyn std::fmt::Debug) {
     let log_path = seogi_dir.join("hook-errors.log");
     let timestamp = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ");
-    let line = format!("[{timestamp}] {error}\n");
+    let line = format!("[{timestamp}] {error:?}\n");
     let _ = fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -77,7 +77,7 @@ mod tests {
     #[test]
     fn test_log_error_creates_file() {
         let dir = tempfile::tempdir().unwrap();
-        log_error(dir.path(), &"test error");
+        log_error(dir.path(), &"test error" as &dyn std::fmt::Debug);
 
         let log = dir.path().join("hook-errors.log");
         assert!(log.exists());
