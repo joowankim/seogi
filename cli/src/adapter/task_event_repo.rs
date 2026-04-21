@@ -58,16 +58,7 @@ pub fn list_completed_in_range(
            AND te.timestamp <= ?2 \
          ORDER BY te.timestamp",
     )?;
-    let rows = stmt.query_map([from_ts, to_ts], |row| {
-        Ok(TaskEvent::from_row(
-            row.get(0)?,
-            row.get(1)?,
-            row.get(2)?,
-            row.get(3)?,
-            row.get(4)?,
-            crate::domain::value::Timestamp::new(row.get(5)?),
-        ))
-    })?;
+    let rows = stmt.query_map([from_ts, to_ts], task_event_from_row)?;
     rows.collect()
 }
 
