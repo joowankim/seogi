@@ -6,6 +6,7 @@ use rusqlite::Row;
 use crate::domain::log::{SystemEvent, ToolFailure, ToolUse};
 use crate::domain::project::{Project, ProjectPrefix};
 use crate::domain::status::{Status, StatusCategory};
+use crate::domain::task::TaskEvent;
 use crate::domain::value::{Ms, SessionId, Timestamp};
 
 /// `tool_uses` 테이블의 한 행을 `ToolUse` 도메인 타입으로 변환한다.
@@ -108,6 +109,22 @@ pub fn task_list_row_from_row(
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
     })
+}
+
+/// `task_events` 테이블의 한 행을 `TaskEvent` 도메인 타입으로 변환한다.
+///
+/// # Errors
+///
+/// 컬럼 읽기 실패 시 `rusqlite::Error`.
+pub fn task_event_from_row(row: &Row<'_>) -> rusqlite::Result<TaskEvent> {
+    Ok(TaskEvent::from_row(
+        row.get("id")?,
+        row.get("task_id")?,
+        row.get("from_status")?,
+        row.get("to_status")?,
+        row.get("session_id")?,
+        Timestamp::new(row.get("timestamp")?),
+    ))
 }
 
 /// `statuses` 테이블의 한 행을 `Status` 도메인 타입으로 변환한다.
