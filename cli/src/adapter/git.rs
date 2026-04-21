@@ -28,3 +28,81 @@ pub fn diff_stat(repo_path: &Path, task_id: &str) -> Result<Option<TaskSize>, Ad
     let stdout = String::from_utf8_lossy(&output.stdout);
     Ok(parse_diff_stat(&stdout))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::process::Command;
+
+    fn git(dir: &Path, args: &[&str]) {
+        let status = Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .unwrap();
+        assert!(status.success(), "git {args:?} failed");
+    }
+
+    fn init_repo(dir: &Path) {
+        git(dir, &["init", "-b", "main"]);
+        git(
+            dir,
+            &[
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=t@t",
+                "commit",
+                "--allow-empty",
+                "-m",
+                "init",
+            ],
+        );
+    }
+
+    #[test]
+    fn diff_stat_returns_none_for_non_git_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = diff_stat(tmp.path(), "SEO-1").unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn diff_stat_returns_none_for_missing_branch() {
+        let tmp = tempfile::tempdir().unwrap();
+        init_repo(tmp.path());
+
+        let result = diff_stat(tmp.path(), "nonexistent").unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn diff_stat_returns_task_size_for_existing_branch() {
+        let tmp = tempfile::tempdir().unwrap();
+        init_repo(tmp.path());
+
+        git(tmp.path(), &["checkout", "-b", "SEO-99"]);
+        std::fs::write(tmp.path().join("new_file.rs"), "fn main() {}").unwrap();
+        git(tmp.path(), &["add", "."]);
+        git(
+            tmp.path(),
+            &[
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=t@t",
+                "commit",
+                "-m",
+                "add file",
+            ],
+        );
+
+        let result = diff_stat(tmp.path(), "SEO-99").unwrap();
+        assert!(result.is_some());
+        let size = result.unwrap();
+        assert_eq!(size.files_changed, 1);
+        assert!(size.additions > 0);
+    }
+}
