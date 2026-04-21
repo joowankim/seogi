@@ -2,140 +2,43 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use regex::Regex;
-use serde::Serialize;
 
 use super::log::{ToolFailure, ToolUse};
-use super::value::{Ms, SessionId};
+use super::value::Ms;
 
-static TEST_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+pub static TEST_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\b(test|vitest|playwright|jest|pytest|mocha|karma)\b")
         .expect("static regex is valid")
 });
-static BUILD_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+pub static BUILD_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\b(build|tsc|webpack|vite build|esbuild|rollup)\b")
         .expect("static regex is valid")
 });
-static LINT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+pub static LINT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\b(lint|eslint|prettier|ruff|biome)\b").expect("static regex is valid")
 });
-static TYPECHECK_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+pub static TYPECHECK_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\b(tsc\s+--noEmit|mypy|pyright)\b").expect("static regex is valid")
 });
 
-/// 세션 프록시 지표 10개.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-#[allow(clippy::struct_excessive_bools)]
-pub struct SessionMetrics {
-    session_id: SessionId,
-    read_before_edit_ratio: u32,
-    doom_loop_count: u32,
-    test_invoked: bool,
-    build_invoked: bool,
-    lint_invoked: bool,
-    typecheck_invoked: bool,
-    tool_call_count: u32,
-    #[serde(rename = "session_duration_ms")]
-    session_duration: Ms,
-    edit_files: Vec<String>,
-    bash_error_rate: f64,
-}
-
-impl SessionMetrics {
-    #[must_use]
-    pub fn session_id(&self) -> &SessionId {
-        &self.session_id
-    }
-
-    #[must_use]
-    pub fn read_before_edit_ratio(&self) -> u32 {
-        self.read_before_edit_ratio
-    }
-
-    #[must_use]
-    pub fn doom_loop_count(&self) -> u32 {
-        self.doom_loop_count
-    }
-
-    #[must_use]
-    pub fn test_invoked(&self) -> bool {
-        self.test_invoked
-    }
-
-    #[must_use]
-    pub fn build_invoked(&self) -> bool {
-        self.build_invoked
-    }
-
-    #[must_use]
-    pub fn lint_invoked(&self) -> bool {
-        self.lint_invoked
-    }
-
-    #[must_use]
-    pub fn typecheck_invoked(&self) -> bool {
-        self.typecheck_invoked
-    }
-
-    #[must_use]
-    pub fn tool_call_count(&self) -> u32 {
-        self.tool_call_count
-    }
-
-    #[must_use]
-    pub fn session_duration(&self) -> Ms {
-        self.session_duration
-    }
-
-    #[must_use]
-    pub fn edit_files(&self) -> &[String] {
-        &self.edit_files
-    }
-
-    #[must_use]
-    pub fn bash_error_rate(&self) -> f64 {
-        self.bash_error_rate
-    }
-}
-
-/// `ToolUse`와 `ToolFailure` 목록에서 10개 프록시 지표를 계산한다.
-///
-/// 순수 함수. I/O 없음.
 #[must_use]
-pub fn calculate(
-    session_id: SessionId,
-    tool_uses: &[ToolUse],
-    tool_failures: &[ToolFailure],
-) -> SessionMetrics {
-    SessionMetrics {
-        session_id,
-        read_before_edit_ratio: calc_read_before_edit(tool_uses),
-        doom_loop_count: calc_doom_loop_count(tool_uses),
-        test_invoked: calc_invoked(tool_uses, &TEST_PATTERN),
-        build_invoked: calc_invoked(tool_uses, &BUILD_PATTERN),
-        lint_invoked: calc_invoked(tool_uses, &LINT_PATTERN),
-        typecheck_invoked: calc_invoked(tool_uses, &TYPECHECK_PATTERN),
-        tool_call_count: tool_uses.len() as u32,
-        session_duration: calc_session_duration(tool_uses),
-        edit_files: calc_edit_files(tool_uses),
-        bash_error_rate: calc_bash_error_rate(tool_uses, tool_failures),
-    }
-}
-
-fn bash_command(tool_use: &ToolUse) -> String {
+pub fn bash_command(tool_use: &ToolUse) -> String {
     serde_json::from_str::<serde_json::Value>(tool_use.tool_input())
         .ok()
         .and_then(|v| v.get("command")?.as_str().map(String::from))
         .unwrap_or_default()
 }
 
-fn file_path(tool_use: &ToolUse) -> Option<String> {
+#[must_use]
+pub fn file_path(tool_use: &ToolUse) -> Option<String> {
     serde_json::from_str::<serde_json::Value>(tool_use.tool_input())
         .ok()
         .and_then(|v| v.get("file_path")?.as_str().map(String::from))
 }
 
-/// 1. 첫 Edit/Write 전 Read/Grep/Glob 호출 수
-fn calc_read_before_edit(tool_uses: &[ToolUse]) -> u32 {
+/// 첫 Edit/Write 전 Read/Grep/Glob 호출 수
+#[must_use]
+pub fn calc_read_before_edit(tool_uses: &[ToolUse]) -> u32 {
     let read_tools = ["Read", "Grep", "Glob"];
     let edit_tools = ["Edit", "Write"];
 
@@ -151,8 +54,9 @@ fn calc_read_before_edit(tool_uses: &[ToolUse]) -> u32 {
         .count() as u32
 }
 
-/// 2. 동일 파일 Edit 5회 이상인 파일 수
-fn calc_doom_loop_count(tool_uses: &[ToolUse]) -> u32 {
+/// 동일 파일 Edit 5회 이상인 파일 수
+#[must_use]
+pub fn calc_doom_loop_count(tool_uses: &[ToolUse]) -> u32 {
     let mut file_counts: HashMap<String, u32> = HashMap::new();
 
     for tu in tool_uses {
@@ -166,16 +70,22 @@ fn calc_doom_loop_count(tool_uses: &[ToolUse]) -> u32 {
     file_counts.values().filter(|&&count| count >= 5).count() as u32
 }
 
-/// 3-6. Bash command 패턴 매칭
-fn calc_invoked(tool_uses: &[ToolUse], pattern: &Regex) -> bool {
+/// Bash command 패턴 매칭
+#[must_use]
+pub fn calc_invoked(tool_uses: &[ToolUse], pattern: &Regex) -> bool {
     tool_uses
         .iter()
         .filter(|tu| tu.tool_name() == "Bash")
         .any(|tu| pattern.is_match(&bash_command(tu)))
 }
 
-/// 8. 첫 도구 호출 ~ 마지막 도구 호출 시간차
-fn calc_session_duration(tool_uses: &[ToolUse]) -> Ms {
+/// 첫 도구 호출 ~ 마지막 도구 호출 시간차
+///
+/// # Panics
+///
+/// `tool_uses`가 비어있지 않을 때만 내부에서 `unwrap`을 사용하므로 패닉하지 않는다.
+#[must_use]
+pub fn calc_session_duration(tool_uses: &[ToolUse]) -> Ms {
     if tool_uses.len() <= 1 {
         return Ms::zero();
     }
@@ -185,8 +95,9 @@ fn calc_session_duration(tool_uses: &[ToolUse]) -> Ms {
     Ms::new(last - first)
 }
 
-/// 9. Edit/Write한 고유 파일 목록
-fn calc_edit_files(tool_uses: &[ToolUse]) -> Vec<String> {
+/// Edit/Write한 고유 파일 목록
+#[must_use]
+pub fn calc_edit_files(tool_uses: &[ToolUse]) -> Vec<String> {
     let mut files: Vec<String> = tool_uses
         .iter()
         .filter(|tu| tu.tool_name() == "Edit" || tu.tool_name() == "Write")
@@ -198,8 +109,9 @@ fn calc_edit_files(tool_uses: &[ToolUse]) -> Vec<String> {
     files
 }
 
-/// 10. Bash 실패 비율
-fn calc_bash_error_rate(tool_uses: &[ToolUse], tool_failures: &[ToolFailure]) -> f64 {
+/// Bash 실패 비율
+#[must_use]
+pub fn calc_bash_error_rate(tool_uses: &[ToolUse], tool_failures: &[ToolFailure]) -> f64 {
     let bash_count = tool_uses
         .iter()
         .filter(|tu| tu.tool_name() == "Bash")
@@ -319,15 +231,6 @@ mod tests {
     }
 
     #[test]
-    fn test_tool_call_count() {
-        let uses: Vec<_> = (0..5)
-            .map(|i| make_tool_use("Read", "{}", 1000 + i))
-            .collect();
-        let m = calculate(SessionId::new("s1"), &uses, &[]);
-        assert_eq!(m.tool_call_count(), 5);
-    }
-
-    #[test]
     fn test_session_duration() {
         let uses = vec![
             make_tool_use("Read", "{}", 1000),
@@ -366,21 +269,6 @@ mod tests {
     fn test_bash_error_rate_no_bash() {
         let uses = vec![make_tool_use("Read", "{}", 1000)];
         assert!((calc_bash_error_rate(&uses, &[]) - 0.0).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn test_empty_session() {
-        let m = calculate(SessionId::new("s1"), &[], &[]);
-        assert_eq!(m.read_before_edit_ratio(), 0);
-        assert_eq!(m.doom_loop_count(), 0);
-        assert!(!m.test_invoked());
-        assert!(!m.build_invoked());
-        assert!(!m.lint_invoked());
-        assert!(!m.typecheck_invoked());
-        assert_eq!(m.tool_call_count(), 0);
-        assert_eq!(m.session_duration().value(), 0);
-        assert!(m.edit_files().is_empty());
-        assert!((m.bash_error_rate() - 0.0).abs() < f64::EPSILON);
     }
 
     #[test]

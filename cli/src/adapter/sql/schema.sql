@@ -66,22 +66,7 @@ CREATE TABLE IF NOT EXISTS system_events (
     timestamp       INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS session_metrics (
-    id                      TEXT PRIMARY KEY,
-    session_id              TEXT NOT NULL,
-    project                 TEXT NOT NULL,
-    read_before_edit_ratio  INTEGER NOT NULL,
-    doom_loop_count         INTEGER NOT NULL,
-    test_invoked            INTEGER NOT NULL,
-    build_invoked           INTEGER NOT NULL,
-    lint_invoked            INTEGER NOT NULL,
-    typecheck_invoked       INTEGER NOT NULL,
-    tool_call_count         INTEGER NOT NULL,
-    session_duration_ms     INTEGER NOT NULL,
-    edit_files              TEXT NOT NULL,
-    bash_error_rate         REAL NOT NULL,
-    timestamp               INTEGER NOT NULL
-);
+DROP TABLE IF EXISTS session_metrics;
 
 CREATE TABLE IF NOT EXISTS changelog (
     id          TEXT PRIMARY KEY,
