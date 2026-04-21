@@ -208,6 +208,26 @@ impl TaskEvent {
         }
     }
 
+    /// DB에서 읽은 값으로 복원한다.
+    #[must_use]
+    pub fn from_row(
+        id: String,
+        task_id: String,
+        from_status: Option<String>,
+        to_status: String,
+        session_id: String,
+        timestamp: Timestamp,
+    ) -> Self {
+        Self {
+            id,
+            task_id,
+            from_status,
+            to_status,
+            session_id,
+            timestamp,
+        }
+    }
+
     #[must_use]
     pub fn id(&self) -> &str {
         &self.id
