@@ -50,6 +50,8 @@ struct TaskCreateParams {
     title: String,
     description: String,
     label: String,
+    #[serde(default)]
+    depends_on: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -82,6 +84,12 @@ struct TaskUpdateParams {
 struct TaskMoveParams {
     task_id: String,
     status: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct TaskDependParams {
+    task_id: String,
+    depends_on: String,
 }
 
 // ── Tool implementations ──
@@ -257,27 +265,31 @@ impl SeogiMcpServer {
         let conn = Arc::clone(&self.conn);
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().expect("db lock poisoned");
-            match workflow::task::create(
+            let task = match workflow::task::create(
                 &conn,
                 &params.project,
                 &params.title,
                 &params.description,
                 &params.label,
             ) {
-                Ok(task) => {
-                    let json = serde_json::json!({
-                        "id": task.id(),
-                        "title": task.title(),
-                        "description": task.description(),
-                        "label": task.label().as_str(),
-                    });
-                    success_text(
-                        serde_json::to_string_pretty(&json)
-                            .expect("JSON Value serialization is infallible"),
-                    )
-                }
-                Err(e) => error_text(format!("{e}")),
+                Ok(t) => t,
+                Err(e) => return error_text(format!("{e}")),
+            };
+            if let Some(dep) = &params.depends_on
+                && let Err(e) = workflow::task::depend(&conn, task.id(), dep)
+            {
+                return error_text(format!("{e}"));
             }
+            let json = serde_json::json!({
+                "id": task.id(),
+                "title": task.title(),
+                "description": task.description(),
+                "label": task.label().as_str(),
+            });
+            success_text(
+                serde_json::to_string_pretty(&json)
+                    .expect("JSON Value serialization is infallible"),
+            )
         })
         .await
         .expect("spawn_blocking panicked")
@@ -310,13 +322,21 @@ impl SeogiMcpServer {
         let conn = Arc::clone(&self.conn);
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().expect("db lock poisoned");
-            match workflow::task::get(&conn, &params.task_id) {
-                Ok(row) => success_text(
-                    serde_json::to_string_pretty(&row)
-                        .expect("TaskListRow serialization is infallible"),
-                ),
-                Err(e) => error_text(format!("{e}")),
-            }
+            let row = match workflow::task::get(&conn, &params.task_id) {
+                Ok(r) => r,
+                Err(e) => return error_text(format!("{e}")),
+            };
+            let deps = match workflow::task::list_dependencies(&conn, &params.task_id) {
+                Ok(d) => d,
+                Err(e) => return error_text(format!("{e}")),
+            };
+            let mut value =
+                serde_json::to_value(&row).expect("TaskListRow serialization is infallible");
+            value["depends_on"] = serde_json::json!(deps);
+            success_text(
+                serde_json::to_string_pretty(&value)
+                    .expect("JSON Value serialization is infallible"),
+            )
         })
         .await
         .expect("spawn_blocking panicked")
@@ -354,6 +374,49 @@ impl SeogiMcpServer {
                 Ok((from, to)) => {
                     success_text(format!("Moved task {}: {from} → {to}", params.task_id))
                 }
+                Err(e) => error_text(format!("{e}")),
+            }
+        })
+        .await
+        .expect("spawn_blocking panicked")
+    }
+
+    #[tool(name = "task_depend", description = "Add a dependency between tasks")]
+    async fn task_depend(
+        &self,
+        Parameters(params): Parameters<TaskDependParams>,
+    ) -> CallToolResult {
+        let conn = Arc::clone(&self.conn);
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().expect("db lock poisoned");
+            match workflow::task::depend(&conn, &params.task_id, &params.depends_on) {
+                Ok(()) => success_text(format!(
+                    "Added dependency: {} depends on {}",
+                    params.task_id, params.depends_on
+                )),
+                Err(e) => error_text(format!("{e}")),
+            }
+        })
+        .await
+        .expect("spawn_blocking panicked")
+    }
+
+    #[tool(
+        name = "task_undepend",
+        description = "Remove a dependency between tasks"
+    )]
+    async fn task_undepend(
+        &self,
+        Parameters(params): Parameters<TaskDependParams>,
+    ) -> CallToolResult {
+        let conn = Arc::clone(&self.conn);
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().expect("db lock poisoned");
+            match workflow::task::undepend(&conn, &params.task_id, &params.depends_on) {
+                Ok(()) => success_text(format!(
+                    "Removed dependency: {} no longer depends on {}",
+                    params.task_id, params.depends_on
+                )),
                 Err(e) => error_text(format!("{e}")),
             }
         })

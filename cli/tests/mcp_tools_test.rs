@@ -158,7 +158,7 @@ fn tools_list_returns_ten_tools() {
 
     let response = session.list_tools();
     let tools = response["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 11);
+    assert_eq!(tools.len(), 13);
 
     session.shutdown();
 }
@@ -220,6 +220,10 @@ fn tools_list_schema_has_correct_required_fields() {
             "task_move" => {
                 assert!(required_strs.contains(&"task_id"));
                 assert!(required_strs.contains(&"status"));
+            }
+            "task_depend" | "task_undepend" => {
+                assert!(required_strs.contains(&"task_id"));
+                assert!(required_strs.contains(&"depends_on"));
             }
             _ => panic!("unexpected tool: {name}"),
         }
@@ -779,6 +783,171 @@ fn task_get_nonexistent_id_returns_error() {
     assert!(is_error(&response));
     let text = extract_text(&response);
     assert!(text.contains("XXX-999"));
+
+    session.shutdown();
+}
+
+// ── Q27: task_depend 성공 ──
+
+#[test]
+fn task_depend_success() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let mut session = McpSession::new(&db_path);
+
+    session.call(
+        "project_create",
+        serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "g"}),
+    );
+    session.call("task_create", serde_json::json!({"project": "Proj", "title": "t1", "description": "d", "label": "feature"}));
+    session.call("task_create", serde_json::json!({"project": "Proj", "title": "t2", "description": "d", "label": "feature"}));
+
+    let response = session.call(
+        "task_depend",
+        serde_json::json!({"task_id": "PRJ-2", "depends_on": "PRJ-1"}),
+    );
+
+    assert!(!is_error(&response));
+    let text = extract_text(&response);
+    assert!(text.contains("PRJ-2"));
+    assert!(text.contains("PRJ-1"));
+
+    session.shutdown();
+}
+
+// ── Q28: task_depend 순환 → 에러 ──
+
+#[test]
+fn task_depend_circular_returns_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let mut session = McpSession::new(&db_path);
+
+    session.call(
+        "project_create",
+        serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "g"}),
+    );
+    session.call("task_create", serde_json::json!({"project": "Proj", "title": "t1", "description": "d", "label": "feature"}));
+    session.call("task_create", serde_json::json!({"project": "Proj", "title": "t2", "description": "d", "label": "feature"}));
+
+    session.call(
+        "task_depend",
+        serde_json::json!({"task_id": "PRJ-2", "depends_on": "PRJ-1"}),
+    );
+    let response = session.call(
+        "task_depend",
+        serde_json::json!({"task_id": "PRJ-1", "depends_on": "PRJ-2"}),
+    );
+
+    assert!(is_error(&response));
+
+    session.shutdown();
+}
+
+// ── Q29: task_undepend 성공 ──
+
+#[test]
+fn task_undepend_success() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let mut session = McpSession::new(&db_path);
+
+    session.call(
+        "project_create",
+        serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "g"}),
+    );
+    session.call("task_create", serde_json::json!({"project": "Proj", "title": "t1", "description": "d", "label": "feature"}));
+    session.call("task_create", serde_json::json!({"project": "Proj", "title": "t2", "description": "d", "label": "feature"}));
+
+    session.call(
+        "task_depend",
+        serde_json::json!({"task_id": "PRJ-2", "depends_on": "PRJ-1"}),
+    );
+    let response = session.call(
+        "task_undepend",
+        serde_json::json!({"task_id": "PRJ-2", "depends_on": "PRJ-1"}),
+    );
+
+    assert!(!is_error(&response));
+
+    session.shutdown();
+}
+
+// ── Q30: task_get 의존성 포함 응답 ──
+
+#[test]
+fn task_get_includes_depends_on() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let mut session = McpSession::new(&db_path);
+
+    session.call(
+        "project_create",
+        serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "g"}),
+    );
+    session.call("task_create", serde_json::json!({"project": "Proj", "title": "t1", "description": "d", "label": "feature"}));
+    session.call("task_create", serde_json::json!({"project": "Proj", "title": "t2", "description": "d", "label": "feature"}));
+
+    session.call(
+        "task_depend",
+        serde_json::json!({"task_id": "PRJ-2", "depends_on": "PRJ-1"}),
+    );
+
+    let response = session.call("task_get", serde_json::json!({"task_id": "PRJ-2"}));
+    assert!(!is_error(&response));
+    let text = extract_text(&response);
+    let data: serde_json::Value = serde_json::from_str(text).unwrap();
+    let deps = data["depends_on"].as_array().unwrap();
+    assert_eq!(deps.len(), 1);
+    assert_eq!(deps[0], "PRJ-1");
+
+    session.shutdown();
+}
+
+// ── Q30a: task_create with depends_on ──
+
+#[test]
+fn task_create_with_depends_on() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let mut session = McpSession::new(&db_path);
+
+    session.call(
+        "project_create",
+        serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "g"}),
+    );
+    session.call("task_create", serde_json::json!({"project": "Proj", "title": "t1", "description": "d", "label": "feature"}));
+
+    let response = session.call("task_create", serde_json::json!({
+        "project": "Proj", "title": "t2", "description": "d", "label": "feature", "depends_on": "PRJ-1"
+    }));
+    assert!(!is_error(&response));
+
+    let get_response = session.call("task_get", serde_json::json!({"task_id": "PRJ-2"}));
+    let text = extract_text(&get_response);
+    let data: serde_json::Value = serde_json::from_str(text).unwrap();
+    assert_eq!(data["depends_on"][0], "PRJ-1");
+
+    session.shutdown();
+}
+
+// ── task_create with invalid depends_on → 에러 ──
+
+#[test]
+fn task_create_with_invalid_depends_on_returns_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let mut session = McpSession::new(&db_path);
+
+    session.call(
+        "project_create",
+        serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "g"}),
+    );
+
+    let response = session.call("task_create", serde_json::json!({
+        "project": "Proj", "title": "t1", "description": "d", "label": "feature", "depends_on": "PRJ-99"
+    }));
+    assert!(is_error(&response));
 
     session.shutdown();
 }
