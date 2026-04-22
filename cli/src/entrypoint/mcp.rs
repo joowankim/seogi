@@ -63,6 +63,11 @@ struct TaskListParams {
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct TaskGetParams {
+    task_id: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct TaskUpdateParams {
     task_id: String,
     #[serde(default)]
@@ -291,6 +296,23 @@ impl SeogiMcpServer {
             ) {
                 Ok(rows) => success_text(
                     serde_json::to_string_pretty(&rows)
+                        .expect("TaskListRow serialization is infallible"),
+                ),
+                Err(e) => error_text(format!("{e}")),
+            }
+        })
+        .await
+        .expect("spawn_blocking panicked")
+    }
+
+    #[tool(name = "task_get", description = "Get a single task by ID")]
+    async fn task_get(&self, Parameters(params): Parameters<TaskGetParams>) -> CallToolResult {
+        let conn = Arc::clone(&self.conn);
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().expect("db lock poisoned");
+            match workflow::task::get(&conn, &params.task_id) {
+                Ok(row) => success_text(
+                    serde_json::to_string_pretty(&row)
                         .expect("TaskListRow serialization is infallible"),
                 ),
                 Err(e) => error_text(format!("{e}")),

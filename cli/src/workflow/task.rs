@@ -63,6 +63,16 @@ pub fn create(
     Ok(task)
 }
 
+/// 단일 태스크를 조회한다.
+///
+/// # Errors
+///
+/// 태스크 미존재, DB 에러 시 `DomainError`.
+pub fn get(conn: &Connection, task_id: &str) -> Result<task_repo::TaskListRow, DomainError> {
+    let row = task_repo::find_by_id_detailed(conn, task_id)?;
+    row.ok_or_else(|| DomainError::Validation(format!("Task not found: \"{task_id}\"")))
+}
+
 /// 태스크 목록을 조회한다.
 ///
 /// # Errors
@@ -279,6 +289,32 @@ mod tests {
 
         let result = create(&conn, "Seogi", "title", "desc", "feature");
         assert!(result.is_err());
+    }
+
+    // Q3: get 존재하는 태스크 → Ok(TaskListRow)
+    #[test]
+    fn test_get_task_success() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "title", "desc", "feature").unwrap();
+
+        let row = get(&conn, "SEO-1").unwrap();
+        assert_eq!(row.id, "SEO-1");
+        assert_eq!(row.title, "title");
+        assert_eq!(row.description, "desc");
+        assert_eq!(row.label, "feature");
+        assert_eq!(row.status_name, "backlog");
+        assert_eq!(row.project_name, "Seogi");
+    }
+
+    // Q4: get 없는 태스크 → DomainError
+    #[test]
+    fn test_get_task_not_found() {
+        let conn = initialize_in_memory().unwrap();
+        let result = get(&conn, "SEO-99");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Task not found"), "err: {err}");
     }
 
     // Q23: list 필터 적용

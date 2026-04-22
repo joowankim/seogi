@@ -16,10 +16,13 @@ use crate::domain::task_size::{TaskSize, parse_diff_stat};
 ///
 /// git 명령 실행 자체가 실패하면 (예: git 미설치) `AdapterError::Io`.
 pub fn diff_stat(repo_path: &Path, task_id: &str) -> Result<Option<TaskSize>, AdapterError> {
-    let output = Command::new("git")
-        .args(["diff", &format!("main...{task_id}"), "--stat"])
+    let mut cmd = Command::new("git");
+    cmd.args(["diff", &format!("main...{task_id}"), "--stat"])
         .current_dir(repo_path)
-        .output()?;
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_INDEX_FILE");
+    let output = cmd.output()?;
 
     if !output.status.success() {
         return Ok(None);
@@ -35,9 +38,14 @@ mod tests {
     use std::process::Command;
 
     fn git(dir: &Path, args: &[&str]) {
+        let path = std::env::var("PATH").unwrap_or_default();
+        let home = std::env::var("HOME").unwrap_or_default();
         let status = Command::new("git")
             .args(args)
             .current_dir(dir)
+            .env_clear()
+            .env("PATH", &path)
+            .env("HOME", &home)
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .status()

@@ -53,6 +53,32 @@ pub fn list(
     Ok(())
 }
 
+/// `seogi task get` 핸들러.
+///
+/// # Errors
+///
+/// 태스크 미존재, DB 에러, 직렬화 에러 시 `anyhow::Error`.
+pub fn get(conn: &Connection, task_id: &str, json: bool) -> Result<()> {
+    let row = workflow::task::get(conn, task_id).map_err(|e| anyhow::anyhow!("{e}"))?;
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&row)
+                .map_err(|e| anyhow::anyhow!("Failed to serialize: {e}"))?
+        );
+    } else {
+        println!("ID:          {}", row.id);
+        println!("Title:       {}", row.title);
+        println!("Description: {}", row.description);
+        println!("Label:       {}", row.label);
+        println!("Status:      {}", row.status_name);
+        println!("Project:     {}", row.project_name);
+        println!("Created:     {}", row.created_at);
+        println!("Updated:     {}", row.updated_at);
+    }
+    Ok(())
+}
+
 /// `seogi task update` 핸들러.
 ///
 /// # Errors

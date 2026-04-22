@@ -24,6 +24,14 @@ pub struct TaskFilter<'a> {
     pub label: Option<&'a str>,
 }
 
+const TASK_DETAIL_SELECT: &str = "\
+    SELECT t.id, t.title, t.description, t.label, \
+    s.name AS status_name, p.name AS project_name, \
+    t.created_at, t.updated_at \
+    FROM tasks t \
+    JOIN statuses s ON t.status_id = s.id \
+    JOIN projects p ON t.project_id = p.id";
+
 /// 태스크를 DB에 저장한다.
 ///
 /// # Errors
@@ -54,13 +62,7 @@ pub fn save(conn: &Connection, task: &Task) -> rusqlite::Result<()> {
 ///
 /// SELECT 실패 시 `rusqlite::Error`.
 pub fn list_all(conn: &Connection, filter: &TaskFilter<'_>) -> rusqlite::Result<Vec<TaskListRow>> {
-    let mut sql = String::from(
-        "SELECT t.id, t.title, t.description, t.label, s.name AS status_name, p.name AS project_name, t.created_at, t.updated_at \
-         FROM tasks t \
-         JOIN statuses s ON t.status_id = s.id \
-         JOIN projects p ON t.project_id = p.id \
-         WHERE 1=1",
-    );
+    let mut sql = format!("{TASK_DETAIL_SELECT} WHERE 1=1");
     let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
     if let Some(project_name) = filter.project_name {
@@ -83,6 +85,18 @@ pub fn list_all(conn: &Connection, filter: &TaskFilter<'_>) -> rusqlite::Result<
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map(param_refs.as_slice(), task_list_row_from_row)?;
     rows.collect()
+}
+
+/// id로 태스크 상세 정보를 조회한다 (status, project JOIN 포함).
+///
+/// # Errors
+///
+/// SELECT 실패 시 `rusqlite::Error`.
+pub fn find_by_id_detailed(conn: &Connection, id: &str) -> rusqlite::Result<Option<TaskListRow>> {
+    let sql = format!("{TASK_DETAIL_SELECT} WHERE t.id = ?1");
+    let mut stmt = conn.prepare(&sql)?;
+    let mut rows = stmt.query_map([id], task_list_row_from_row)?;
+    rows.next().transpose()
 }
 
 /// 태스크의 `id`와 `status_id`를 반환하는 조회 결과.
@@ -491,6 +505,31 @@ mod tests {
         };
         let changed = update(&conn, "SEO-99", &params, &chrono::Utc::now()).unwrap();
         assert!(!changed);
+    }
+
+    // Q1: find_by_id_detailed 존재하는 id → Some(TaskListRow)
+    #[test]
+    fn test_task_repo_find_by_id_detailed_found() {
+        let (conn, project_id, status_id) = setup();
+        let task = sample_task("SEO", 1, &status_id, &project_id);
+        save(&conn, &task).unwrap();
+
+        let row = find_by_id_detailed(&conn, "SEO-1").unwrap();
+        assert!(row.is_some());
+        let row = row.unwrap();
+        assert_eq!(row.id, "SEO-1");
+        assert_eq!(row.title, "test task");
+        assert_eq!(row.description, "description");
+        assert_eq!(row.label, "feature");
+        assert_eq!(row.status_name, "backlog");
+        assert_eq!(row.project_name, "Seogi");
+    }
+
+    // Q2: find_by_id_detailed 없는 id → None
+    #[test]
+    fn test_task_repo_find_by_id_detailed_not_found() {
+        let (conn, _, _) = setup();
+        assert!(find_by_id_detailed(&conn, "SEO-99").unwrap().is_none());
     }
 
     // Q8: find_by_id 존재 → Some

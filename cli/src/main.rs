@@ -149,6 +149,14 @@ enum TaskAction {
         #[arg(long)]
         json: bool,
     },
+    /// 태스크 단일 조회
+    Get {
+        /// 태스크 ID (e.g., SEO-1)
+        task_id: String,
+        /// JSON 형식으로 출력
+        #[arg(long)]
+        json: bool,
+    },
     /// 태스크 수정
     Update {
         /// 태스크 ID (e.g., SEO-1)
@@ -277,6 +285,9 @@ fn main() -> Result<()> {
                         label.as_deref(),
                         json,
                     )?;
+                }
+                TaskAction::Get { task_id, json } => {
+                    seogi::entrypoint::task::get(&conn, &task_id, json)?;
                 }
                 TaskAction::Update {
                     task_id,
