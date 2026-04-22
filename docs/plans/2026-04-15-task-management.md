@@ -391,6 +391,26 @@ MCP 도구:
 - `session_count` 제외 — 세션-태스크 매핑 없이 의미 없음
 - `seogi report`를 태스크 중심으로 완전 교체 — 세션 프록시 지표도 태스크 시간 범위로 집계
 
+### 5단계: 태스크 관리 고도화
+
+> 단일 조회, 의존성, 서브태스크를 추가하여 태스크 관리 기능의 완성도를 높인다.
+
+| Feature | 내용 | 의존성 |
+|---------|------|--------|
+| 26 (SEO-11) | 단일 태스크 조회 — `seogi task get <id>` CLI + `task_get` MCP 도구. description 포함 상세 출력 | 없음 |
+| 27 (SEO-12) | 의존성 라벨링 — `task_dependencies` 테이블, `seogi task depend <id> --on <id>`, `task list`에서 blocked 표시, MCP 도구 추가 | 없음 |
+| 28 (SEO-13) | 서브태스크 — `tasks.parent_id` 컬럼, `seogi task create --parent <id>`, 부모-자식 관계 표시, 서브태스크 전체 완료 시 부모 완료 가능 로직 | 27 |
+
+**보류 사항:**
+- 코멘트: PR description으로 충분. 별도 목적이 생기면 재검토
+- GitHub PR 훅: 외부 서버 필요. PR 생성/머지 이벤트로 자동 상태 전환 (토큰 절약 효과)
+- 스프린트/사이클: 데이터가 충분히 쌓인 후 도입. ground-truth 목적 2 (변경 전후 비교)와 연결
+- 하니스별 메트릭 구분: 하니스 관리 도구 선정/개발 후 연동. task에 harness_id 입력
+
+**참조:**
+- [Picrew/awesome-agent-harness](https://github.com/Picrew/awesome-agent-harness) — 에이전트 하니스 도구 목록
+- [AutoJunjie/awesome-agent-harness](https://github.com/AutoJunjie/awesome-agent-harness) — 태스크 라이프사이클, 비용 추적, 하니스 버전 관리 도구 목록
+
 ---
 
 ## 논의 결과
@@ -408,3 +428,5 @@ MCP 도구:
 - 토큰 메트릭: transcript JSONL의 `message.usage` 파싱. `usage` 필드는 Anthropic API 스펙으로 안정적.
 - task_size: git diff 기반. 브랜치 이름 = 태스크 ID. 매칭 브랜치 없으면 생략.
 - 리포트: `seogi report`를 세션 중심에서 태스크 중심으로 완전 교체.
+- 코멘트 기능: PR description으로 충분. 별도 목적이 생기면 재검토.
+- 하니스별 메트릭: 하니스 관리 도구 선정/개발 후 연동 예정. seogi 내부에서는 만들지 않음.
