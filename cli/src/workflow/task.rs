@@ -450,6 +450,31 @@ mod tests {
         assert!(result.is_err());
     }
 
+    // 빈 description → 에러 (BRDA:189 커버)
+    #[test]
+    fn test_update_task_empty_description() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "title", "desc", "feature").unwrap();
+
+        let result = update(&conn, "SEO-1", None, Some(""), None);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("description"), "err: {err}");
+    }
+
+    // description만 지정 → 성공 (BRDA:179 short-circuit 조합 커버)
+    #[test]
+    fn test_update_task_description_only() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "title", "desc", "feature").unwrap();
+
+        update(&conn, "SEO-1", None, Some("new desc"), None).unwrap();
+        let rows = list(&conn, None, None, None).unwrap();
+        assert_eq!(rows[0].description, "new desc");
+    }
+
     // Q10: update 무효 label → 에러
     #[test]
     fn test_update_task_invalid_label() {
