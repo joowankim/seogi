@@ -362,6 +362,78 @@ fn create_task(db: &str, title: &str, label: &str) {
     );
 }
 
+// Q5: task get 기본 출력 (키-값 형식, 모든 필드 포함)
+#[test]
+fn test_task_get_default_output() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    create_project(db);
+    create_task(db, "단일 조회 태스크", "feature");
+
+    let output = run_seogi(&["task", "get", "SEO-1"], db);
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("SEO-1"), "stdout: {stdout}");
+    assert!(stdout.contains("단일 조회 태스크"), "stdout: {stdout}");
+    assert!(stdout.contains("feature"), "stdout: {stdout}");
+    assert!(stdout.contains("backlog"), "stdout: {stdout}");
+    assert!(stdout.contains("Seogi"), "stdout: {stdout}");
+}
+
+// Q6: task get --json → JSON 객체
+#[test]
+fn test_task_get_json_output() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    create_project(db);
+    create_task(db, "JSON 조회", "bug");
+
+    let output = run_seogi(&["task", "get", "SEO-1", "--json"], db);
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("유효한 JSON이어야 함");
+    assert_eq!(parsed["id"], "SEO-1");
+    assert_eq!(parsed["title"], "JSON 조회");
+    assert_eq!(parsed["label"], "bug");
+    assert_eq!(parsed["status_name"], "backlog");
+    assert_eq!(parsed["project_name"], "Seogi");
+    assert!(parsed["description"].is_string());
+    assert!(parsed["created_at"].is_string());
+    assert!(parsed["updated_at"].is_string());
+}
+
+// Q7: task get 존재하지 않는 태스크 → 에러
+#[test]
+fn test_task_get_not_found() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    create_project(db);
+
+    let output = run_seogi(&["task", "get", "SEO-99"], db);
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("SEO-99"), "stderr: {stderr}");
+}
+
 // Q11: task update --title 성공, DB 반영
 #[test]
 fn test_task_update_title() {

@@ -158,7 +158,7 @@ fn tools_list_returns_ten_tools() {
 
     let response = session.list_tools();
     let tools = response["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 10);
+    assert_eq!(tools.len(), 11);
 
     session.shutdown();
 }
@@ -207,6 +207,9 @@ fn tools_list_schema_has_correct_required_fields() {
                 assert!(required_strs.contains(&"title"));
                 assert!(required_strs.contains(&"description"));
                 assert!(required_strs.contains(&"label"));
+            }
+            "task_get" => {
+                assert!(required_strs.contains(&"task_id"));
             }
             "task_update" => {
                 assert!(required_strs.contains(&"task_id"));
@@ -720,6 +723,62 @@ fn task_list_filters_by_label() {
     let data: Vec<serde_json::Value> = serde_json::from_str(text).unwrap();
     assert_eq!(data.len(), 1);
     assert_eq!(data[0]["label"], "bug");
+
+    session.shutdown();
+}
+
+// ── Q8: task_get 성공 ──
+
+#[test]
+fn task_get_returns_task_detail() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let mut session = McpSession::new(&db_path);
+
+    session.call(
+        "project_create",
+        serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "goal"}),
+    );
+    session.call(
+        "task_create",
+        serde_json::json!({
+            "project": "Proj",
+            "title": "My Task",
+            "description": "Task description here",
+            "label": "feature"
+        }),
+    );
+
+    let response = session.call("task_get", serde_json::json!({"task_id": "PRJ-1"}));
+
+    assert!(!is_error(&response));
+    let text = extract_text(&response);
+    let data: serde_json::Value = serde_json::from_str(text).unwrap();
+    assert_eq!(data["id"], "PRJ-1");
+    assert_eq!(data["title"], "My Task");
+    assert_eq!(data["description"], "Task description here");
+    assert_eq!(data["label"], "feature");
+    assert_eq!(data["status_name"], "backlog");
+    assert_eq!(data["project_name"], "Proj");
+    assert!(data["created_at"].is_string());
+    assert!(data["updated_at"].is_string());
+
+    session.shutdown();
+}
+
+// ── Q9: task_get 미존재 태스크 ──
+
+#[test]
+fn task_get_nonexistent_id_returns_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let mut session = McpSession::new(&db_path);
+
+    let response = session.call("task_get", serde_json::json!({"task_id": "XXX-999"}));
+
+    assert!(is_error(&response));
+    let text = extract_text(&response);
+    assert!(text.contains("XXX-999"));
 
     session.shutdown();
 }
