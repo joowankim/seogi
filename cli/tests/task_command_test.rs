@@ -625,3 +625,161 @@ fn test_task_move_same_status() {
 
     assert!(!output.status.success());
 }
+
+// Q21: task depend 성공
+#[test]
+fn test_task_depend_success() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    create_project(db);
+    create_task(db, "t1", "feature");
+    create_task(db, "t2", "feature");
+
+    let output = run_seogi(&["task", "depend", "SEO-2", "--on", "SEO-1"], db);
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("SEO-2"), "stdout: {stdout}");
+    assert!(stdout.contains("SEO-1"), "stdout: {stdout}");
+}
+
+// Q21a: task create --depends-on 성공
+#[test]
+fn test_task_create_with_depends_on() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    create_project(db);
+    create_task(db, "t1", "feature");
+
+    let output = run_seogi(
+        &[
+            "task",
+            "create",
+            "--project",
+            "Seogi",
+            "--title",
+            "t2",
+            "--description",
+            "d2",
+            "--label",
+            "feature",
+            "--depends-on",
+            "SEO-1",
+        ],
+        db,
+    );
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let get_output = run_seogi(&["task", "get", "SEO-2", "--json"], db);
+    let stdout = String::from_utf8(get_output.stdout).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let deps = parsed["depends_on"].as_array().unwrap();
+    assert_eq!(deps.len(), 1);
+    assert_eq!(deps[0], "SEO-1");
+}
+
+// Q22a: task depend 존재하지 않는 태스크 → 에러
+#[test]
+fn test_task_depend_not_found() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    create_project(db);
+    create_task(db, "t1", "feature");
+
+    let output = run_seogi(&["task", "depend", "SEO-99", "--on", "SEO-1"], db);
+    assert!(!output.status.success());
+}
+
+// Q23: task undepend 성공
+#[test]
+fn test_task_undepend_success() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    create_project(db);
+    create_task(db, "t1", "feature");
+    create_task(db, "t2", "feature");
+
+    run_seogi(&["task", "depend", "SEO-2", "--on", "SEO-1"], db);
+    let output = run_seogi(&["task", "undepend", "SEO-2", "--on", "SEO-1"], db);
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+// Q24: task list blocked 표시
+#[test]
+fn test_task_list_blocked() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    create_project(db);
+    create_task(db, "t1", "feature");
+    create_task(db, "t2", "feature");
+
+    run_seogi(&["task", "depend", "SEO-2", "--on", "SEO-1"], db);
+
+    let output = run_seogi(&["task", "list"], db);
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("[blocked]"), "stdout: {stdout}");
+}
+
+// Q25: task get 의존성 목록 포함
+#[test]
+fn test_task_get_with_dependencies() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    create_project(db);
+    create_task(db, "t1", "feature");
+    create_task(db, "t2", "feature");
+
+    run_seogi(&["task", "depend", "SEO-2", "--on", "SEO-1"], db);
+
+    let output = run_seogi(&["task", "get", "SEO-2"], db);
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("Depends on:"), "stdout: {stdout}");
+    assert!(stdout.contains("SEO-1"), "stdout: {stdout}");
+}
+
+// Q26: task get --json depends_on 배열 포함
+#[test]
+fn test_task_get_json_with_dependencies() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    create_project(db);
+    create_task(db, "t1", "feature");
+    create_task(db, "t2", "feature");
+
+    run_seogi(&["task", "depend", "SEO-2", "--on", "SEO-1"], db);
+
+    let output = run_seogi(&["task", "get", "SEO-2", "--json"], db);
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let deps = parsed["depends_on"].as_array().unwrap();
+    assert_eq!(deps.len(), 1);
+    assert_eq!(deps[0], "SEO-1");
+}

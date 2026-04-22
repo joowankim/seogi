@@ -3,7 +3,7 @@ use std::str::FromStr;
 use chrono::Utc;
 use rusqlite::Connection;
 
-use crate::adapter::{project_repo, status_repo, task_event_repo, task_repo};
+use crate::adapter::{project_repo, status_repo, task_dependency_repo, task_event_repo, task_repo};
 use crate::domain::error::DomainError;
 use crate::domain::status::StatusCategory;
 use crate::domain::task::{CLI_SESSION_ID, Label, Task, TaskEvent};
@@ -71,6 +71,72 @@ pub fn create(
 pub fn get(conn: &Connection, task_id: &str) -> Result<task_repo::TaskListRow, DomainError> {
     let row = task_repo::find_by_id_detailed(conn, task_id)?;
     row.ok_or_else(|| DomainError::Validation(format!("Task not found: \"{task_id}\"")))
+}
+
+/// 태스크 의존 관계를 추가한다.
+///
+/// # Errors
+///
+/// 태스크 미존재, 자기 자신, 순환 의존, 중복, DB 에러 시 `DomainError`.
+pub fn depend(conn: &Connection, task_id: &str, depends_on: &str) -> Result<(), DomainError> {
+    if task_id == depends_on {
+        return Err(DomainError::Validation(format!(
+            "Cannot depend on self: \"{task_id}\""
+        )));
+    }
+    task_repo::find_by_id(conn, task_id)?
+        .ok_or_else(|| DomainError::Validation(format!("Task not found: \"{task_id}\"")))?;
+    task_repo::find_by_id(conn, depends_on)?
+        .ok_or_else(|| DomainError::Validation(format!("Task not found: \"{depends_on}\"")))?;
+
+    let edges = task_dependency_repo::list_all_edges(conn)?;
+    if crate::domain::dependency::detect_cycle(&edges, task_id, depends_on) {
+        return Err(DomainError::Validation(format!(
+            "Circular dependency detected: {task_id} → {depends_on}"
+        )));
+    }
+
+    task_dependency_repo::save(conn, task_id, depends_on).map_err(|_| {
+        DomainError::Validation(format!(
+            "Dependency already exists: {task_id} depends on {depends_on}"
+        ))
+    })
+}
+
+/// 태스크 의존 관계를 제거한다.
+///
+/// # Errors
+///
+/// 관계 미존재, DB 에러 시 `DomainError`.
+pub fn undepend(conn: &Connection, task_id: &str, depends_on: &str) -> Result<(), DomainError> {
+    let deleted = task_dependency_repo::delete(conn, task_id, depends_on)?;
+    if !deleted {
+        return Err(DomainError::Validation(format!(
+            "Dependency not found: {task_id} does not depend on {depends_on}"
+        )));
+    }
+    Ok(())
+}
+
+/// 태스크의 의존 대상 ID 목록을 반환한다.
+///
+/// # Errors
+///
+/// DB 에러 시 `DomainError`.
+pub fn list_dependencies(conn: &Connection, task_id: &str) -> Result<Vec<String>, DomainError> {
+    Ok(task_dependency_repo::list_dependencies(conn, task_id)?)
+}
+
+/// 미완료 의존성이 있는 태스크 ID 집합을 반환한다.
+///
+/// # Errors
+///
+/// DB 에러 시 `DomainError`.
+pub fn blocked_task_ids(
+    conn: &Connection,
+) -> Result<std::collections::HashSet<String>, DomainError> {
+    let ids = task_dependency_repo::list_blocked_task_ids(conn)?;
+    Ok(ids.into_iter().collect())
 }
 
 /// 태스크 목록을 조회한다.
@@ -474,5 +540,166 @@ mod tests {
         let (from, to) = move_task(&conn, "SEO-1", "in_review").unwrap();
         assert_eq!(from, "in_progress");
         assert_eq!(to, "in_review");
+    }
+
+    // Q11: depend 성공
+    #[test]
+    fn test_depend_success() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "t1", "d1", "feature").unwrap();
+        create(&conn, "Seogi", "t2", "d2", "feature").unwrap();
+
+        depend(&conn, "SEO-2", "SEO-1").unwrap();
+        let deps = list_dependencies(&conn, "SEO-2").unwrap();
+        assert_eq!(deps, vec!["SEO-1"]);
+    }
+
+    // Q12: depend 존재하지 않는 태스크 → 에러
+    #[test]
+    fn test_depend_task_not_found() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "t1", "d1", "feature").unwrap();
+
+        assert!(depend(&conn, "SEO-99", "SEO-1").is_err());
+        assert!(depend(&conn, "SEO-1", "SEO-99").is_err());
+    }
+
+    // Q13: depend 자기 자신 → 에러
+    #[test]
+    fn test_depend_self() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "t1", "d1", "feature").unwrap();
+
+        let result = depend(&conn, "SEO-1", "SEO-1");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Cannot depend on self"), "err: {err}");
+    }
+
+    // Q14: depend 순환 → 에러
+    #[test]
+    fn test_depend_circular() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "t1", "d1", "feature").unwrap();
+        create(&conn, "Seogi", "t2", "d2", "feature").unwrap();
+        create(&conn, "Seogi", "t3", "d3", "feature").unwrap();
+
+        depend(&conn, "SEO-2", "SEO-1").unwrap();
+        depend(&conn, "SEO-3", "SEO-2").unwrap();
+
+        let result = depend(&conn, "SEO-1", "SEO-3");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Circular dependency"), "err: {err}");
+    }
+
+    // Q15: depend 중복 → 에러
+    #[test]
+    fn test_depend_duplicate() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "t1", "d1", "feature").unwrap();
+        create(&conn, "Seogi", "t2", "d2", "feature").unwrap();
+
+        depend(&conn, "SEO-2", "SEO-1").unwrap();
+        let result = depend(&conn, "SEO-2", "SEO-1");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("already exists"), "err: {err}");
+    }
+
+    // Q15a: create + depend 조합 → 태스크 생성 직후 의존 관계 설정 가능
+    #[test]
+    fn test_create_then_depend() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "t1", "d1", "feature").unwrap();
+        let task2 = create(&conn, "Seogi", "t2", "d2", "feature").unwrap();
+
+        depend(&conn, task2.id(), "SEO-1").unwrap();
+        let deps = list_dependencies(&conn, task2.id()).unwrap();
+        assert_eq!(deps, vec!["SEO-1"]);
+    }
+
+    // Q15b: depend on 존재하지 않는 태스크 → 에러
+    #[test]
+    fn test_depend_on_nonexistent_task() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "t1", "d1", "feature").unwrap();
+
+        let result = depend(&conn, "SEO-1", "SEO-99");
+        assert!(result.is_err());
+    }
+
+    // Q16: undepend 성공
+    #[test]
+    fn test_undepend_success() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "t1", "d1", "feature").unwrap();
+        create(&conn, "Seogi", "t2", "d2", "feature").unwrap();
+
+        depend(&conn, "SEO-2", "SEO-1").unwrap();
+        undepend(&conn, "SEO-2", "SEO-1").unwrap();
+        let deps = list_dependencies(&conn, "SEO-2").unwrap();
+        assert!(deps.is_empty());
+    }
+
+    // Q17: undepend 없는 관계 → 에러
+    #[test]
+    fn test_undepend_not_found() {
+        let conn = initialize_in_memory().unwrap();
+        let result = undepend(&conn, "SEO-2", "SEO-1");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Dependency not found"), "err: {err}");
+    }
+
+    // Q18: is_blocked 미완료 의존성 → blocked
+    #[test]
+    fn test_is_blocked_with_pending() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "t1", "d1", "feature").unwrap();
+        create(&conn, "Seogi", "t2", "d2", "feature").unwrap();
+
+        depend(&conn, "SEO-2", "SEO-1").unwrap();
+        let blocked = blocked_task_ids(&conn).unwrap();
+        assert!(blocked.contains("SEO-2"));
+    }
+
+    // Q19: is_blocked 의존성 모두 완료 → not blocked
+    #[test]
+    fn test_is_blocked_all_completed() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "t1", "d1", "feature").unwrap();
+        create(&conn, "Seogi", "t2", "d2", "feature").unwrap();
+
+        depend(&conn, "SEO-2", "SEO-1").unwrap();
+
+        // SEO-1을 done으로 이동: backlog → todo → in_progress → done
+        move_task(&conn, "SEO-1", "todo").unwrap();
+        move_task(&conn, "SEO-1", "in_progress").unwrap();
+        move_task(&conn, "SEO-1", "done").unwrap();
+
+        let blocked = blocked_task_ids(&conn).unwrap();
+        assert!(!blocked.contains("SEO-2"));
+    }
+
+    // Q20: is_blocked 의존성 없음 → not blocked
+    #[test]
+    fn test_is_blocked_no_dependencies() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        create(&conn, "Seogi", "t1", "d1", "feature").unwrap();
+
+        let blocked = blocked_task_ids(&conn).unwrap();
+        assert!(!blocked.contains("SEO-1"));
     }
 }

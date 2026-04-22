@@ -14,9 +14,13 @@ pub fn create(
     title: &str,
     description: &str,
     label: &str,
+    depends_on: Option<&str>,
 ) -> Result<()> {
     let task = workflow::task::create(conn, project, title, description, label)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
+    if let Some(dep) = depends_on {
+        workflow::task::depend(conn, task.id(), dep).map_err(|e| anyhow::anyhow!("{e}"))?;
+    }
     println!("Created task {} \"{}\"", task.id(), task.title());
     Ok(())
 }
@@ -42,12 +46,15 @@ pub fn list(
                 .map_err(|e| anyhow::anyhow!("Failed to serialize: {e}"))?
         );
     } else {
-        println!("{:<10} {:<24} {:<16} LABEL", "ID", "TITLE", "STATUS");
+        let blocked = workflow::task::blocked_task_ids(conn).map_err(|e| anyhow::anyhow!("{e}"))?;
+        println!("{:<10} {:<24} {:<24} LABEL", "ID", "TITLE", "STATUS");
         for t in &tasks {
-            println!(
-                "{:<10} {:<24} {:<16} {}",
-                t.id, t.title, t.status_name, t.label
-            );
+            let status = if blocked.contains(&t.id) {
+                format!("{} [blocked]", t.status_name)
+            } else {
+                t.status_name.clone()
+            };
+            println!("{:<10} {:<24} {:<24} {}", t.id, t.title, status, t.label);
         }
     }
     Ok(())
@@ -60,10 +67,15 @@ pub fn list(
 /// 태스크 미존재, DB 에러, 직렬화 에러 시 `anyhow::Error`.
 pub fn get(conn: &Connection, task_id: &str, json: bool) -> Result<()> {
     let row = workflow::task::get(conn, task_id).map_err(|e| anyhow::anyhow!("{e}"))?;
+    let deps =
+        workflow::task::list_dependencies(conn, task_id).map_err(|e| anyhow::anyhow!("{e}"))?;
     if json {
+        let mut value =
+            serde_json::to_value(&row).map_err(|e| anyhow::anyhow!("Failed to serialize: {e}"))?;
+        value["depends_on"] = serde_json::json!(deps);
         println!(
             "{}",
-            serde_json::to_string_pretty(&row)
+            serde_json::to_string_pretty(&value)
                 .map_err(|e| anyhow::anyhow!("Failed to serialize: {e}"))?
         );
     } else {
@@ -75,7 +87,32 @@ pub fn get(conn: &Connection, task_id: &str, json: bool) -> Result<()> {
         println!("Project:     {}", row.project_name);
         println!("Created:     {}", row.created_at);
         println!("Updated:     {}", row.updated_at);
+        if !deps.is_empty() {
+            println!("Depends on:  {}", deps.join(", "));
+        }
     }
+    Ok(())
+}
+
+/// `seogi task depend` 핸들러.
+///
+/// # Errors
+///
+/// 태스크 미존재, 자기 자신, 순환, 중복, DB 에러 시 `anyhow::Error`.
+pub fn depend(conn: &Connection, task_id: &str, depends_on: &str) -> Result<()> {
+    workflow::task::depend(conn, task_id, depends_on).map_err(|e| anyhow::anyhow!("{e}"))?;
+    println!("Added dependency: {task_id} depends on {depends_on}");
+    Ok(())
+}
+
+/// `seogi task undepend` 핸들러.
+///
+/// # Errors
+///
+/// 관계 미존재, DB 에러 시 `anyhow::Error`.
+pub fn undepend(conn: &Connection, task_id: &str, depends_on: &str) -> Result<()> {
+    workflow::task::undepend(conn, task_id, depends_on).map_err(|e| anyhow::anyhow!("{e}"))?;
+    println!("Removed dependency: {task_id} no longer depends on {depends_on}");
     Ok(())
 }
 

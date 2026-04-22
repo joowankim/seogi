@@ -133,6 +133,9 @@ enum TaskAction {
         /// 라벨 (feature, bug, refactor, chore, docs)
         #[arg(long)]
         label: String,
+        /// 의존 대상 태스크 ID
+        #[arg(long)]
+        depends_on: Option<String>,
     },
     /// 태스크 목록 조회
     List {
@@ -170,6 +173,22 @@ enum TaskAction {
         /// 변경할 라벨
         #[arg(long)]
         label: Option<String>,
+    },
+    /// 태스크 의존 관계 추가
+    Depend {
+        /// 태스크 ID (e.g., SEO-2)
+        task_id: String,
+        /// 의존 대상 태스크 ID (e.g., SEO-1)
+        #[arg(long)]
+        on: String,
+    },
+    /// 태스크 의존 관계 제거
+    Undepend {
+        /// 태스크 ID (e.g., SEO-2)
+        task_id: String,
+        /// 제거할 의존 대상 태스크 ID (e.g., SEO-1)
+        #[arg(long)]
+        on: String,
     },
     /// 태스크 상태 전환
     Move {
@@ -269,8 +288,16 @@ fn main() -> Result<()> {
                     title,
                     description,
                     label,
+                    depends_on,
                 } => {
-                    seogi::entrypoint::task::create(&conn, &project, &title, &description, &label)?;
+                    seogi::entrypoint::task::create(
+                        &conn,
+                        &project,
+                        &title,
+                        &description,
+                        &label,
+                        depends_on.as_deref(),
+                    )?;
                 }
                 TaskAction::List {
                     project,
@@ -302,6 +329,12 @@ fn main() -> Result<()> {
                         description.as_deref(),
                         label.as_deref(),
                     )?;
+                }
+                TaskAction::Depend { task_id, on } => {
+                    seogi::entrypoint::task::depend(&conn, &task_id, &on)?;
+                }
+                TaskAction::Undepend { task_id, on } => {
+                    seogi::entrypoint::task::undepend(&conn, &task_id, &on)?;
                 }
                 TaskAction::Move { task_id, status } => {
                     seogi::entrypoint::task::move_task(&conn, &task_id, &status)?;
