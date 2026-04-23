@@ -49,8 +49,8 @@ domain 계층 (순수 타입 + 순수 함수) + adapter 계층 (SQLite, 파일 I
 ## DB 스키마
 
 ```sql
--- 프로젝트/태스크
-CREATE TABLE projects (
+-- 워크스페이스/태스크
+CREATE TABLE workspaces (
     id          TEXT PRIMARY KEY,
     name        TEXT NOT NULL,
     prefix      TEXT NOT NULL UNIQUE,  -- "SEO", "LOC" 등 (대문자 알파벳 3글자, 태스크 id 접두사)
@@ -75,7 +75,7 @@ CREATE TABLE tasks (
     description TEXT NOT NULL,
     label       TEXT NOT NULL,       -- feature, bug, refactor, chore, docs
     status_id   TEXT NOT NULL REFERENCES statuses(id),
-    project_id  TEXT NOT NULL REFERENCES projects(id),
+    workspace_id  TEXT NOT NULL REFERENCES workspaces(id),
     created_at  TEXT NOT NULL,       -- ISO 8601
     updated_at  TEXT NOT NULL        -- ISO 8601
 );
@@ -93,8 +93,8 @@ CREATE TABLE task_events (
 CREATE TABLE tool_uses (
     id              TEXT PRIMARY KEY,
     session_id      TEXT NOT NULL,
-    project         TEXT NOT NULL,
-    project_path    TEXT NOT NULL,
+    workspace       TEXT NOT NULL,
+    workspace_path  TEXT NOT NULL,
     tool_name       TEXT NOT NULL,
     tool_input      TEXT NOT NULL,
     duration_ms     INTEGER NOT NULL,
@@ -104,8 +104,8 @@ CREATE TABLE tool_uses (
 CREATE TABLE tool_failures (
     id              TEXT PRIMARY KEY,
     session_id      TEXT NOT NULL,
-    project         TEXT NOT NULL,
-    project_path    TEXT NOT NULL,
+    workspace       TEXT NOT NULL,
+    workspace_path  TEXT NOT NULL,
     tool_name       TEXT NOT NULL,
     error           TEXT NOT NULL,
     timestamp       INTEGER NOT NULL
@@ -114,8 +114,8 @@ CREATE TABLE tool_failures (
 CREATE TABLE system_events (
     id              TEXT PRIMARY KEY,
     session_id      TEXT NOT NULL,
-    project         TEXT NOT NULL,
-    project_path    TEXT NOT NULL,
+    workspace       TEXT NOT NULL,
+    workspace_path  TEXT NOT NULL,
     event_type      TEXT NOT NULL,
     content         TEXT NOT NULL,
     timestamp       INTEGER NOT NULL
@@ -228,18 +228,18 @@ CREATE TABLE system_events (
 
 ## CLI 명령어
 
-### 프로젝트
+### 워크스페이스
 
 ```
-seogi project create --name "..." --prefix "SEO" --goal "..."
-seogi project list
+seogi workspace create --name "..." --prefix "SEO" --goal "..."
+seogi workspace list
 ```
 
 ### 태스크
 
 ```
-seogi task create --project <name> --title "..." --description "..." --label feature
-seogi task list [--project <name>] [--status <status>] [--label <label>]
+seogi task create --workspace <name> --title "..." --description "..." --label feature
+seogi task list [--workspace <name>] [--status <status>] [--label <label>]
 seogi task update <task_id> [--title "..."] [--description "..."] [--label <label>]
 seogi task move <task_id> <status>
 ```
@@ -276,7 +276,7 @@ seogi migrate
 ### 리포트 (태스크 중심)
 
 ```
-seogi report --from <date> --to <date> [--project <name>] [--detail]
+seogi report --from <date> --to <date> [--workspace <name>] [--detail]
 ```
 
 기본 출력: 요약 테이블
@@ -313,7 +313,7 @@ seogi mcp-server
 ```
 
 MCP 도구:
-- `project_create`, `project_list`
+- `workspace_create`, `workspace_list`
 - `task_create`, `task_list`, `task_update`, `task_move`
 - `status_create`, `status_update`, `status_delete`, `status_list`
 
@@ -337,8 +337,8 @@ MCP 도구:
 
 | Feature | 내용 | 의존성 |
 |---------|------|--------|
-| 11 | 초기 데이터 시딩 — `StatusCategory` enum, `status_categories` 테이블 DROP, `statuses.category TEXT` 변경, `projects.next_seq` 추가, 기본 statuses 7개 시딩 | 없음 |
-| 12 | Project CRUD — `project create/list`, `Prefix` newtype (대문자 3글자), 출력 테이블+`--json` | 11 |
+| 11 | 초기 데이터 시딩 — `StatusCategory` enum, `status_categories` 테이블 DROP, `statuses.category TEXT` 변경, `workspaces.next_seq` 추가, 기본 statuses 7개 시딩 | 없음 |
+| 12 | Workspace CRUD — `workspace create/list`, `Prefix` newtype (대문자 3글자), 출력 테이블+`--json` | 11 |
 | 13 | Status CRUD — `status create/update/delete/list`, 카테고리 유효성 검증, 출력 테이블+`--json` | 11 |
 | 14 | Task 생성/조회 — `task create/list`, `Label` enum, `{prefix}-{seq}` ID, 초기상태 backlog, 필터링 | 12, 13 |
 | 15 | Task 업데이트 — `task update` (title, description, label 수정) | 14 |
@@ -347,8 +347,8 @@ MCP 도구:
 **결정 사항:**
 - 카테고리는 DB 테이블이 아닌 코드 enum (`StatusCategory`)
 - 기본 statuses 7개는 스키마 적용 시 자동 삽입
-- `projects.next_seq`로 시퀀스 채번 (DEFAULT 없이 도메인에서 초기값 설정)
-- `--project`는 프로젝트 이름, prefix는 기본값 이름 앞 3글자 대문자
+- `workspaces.next_seq`로 시퀀스 채번 (DEFAULT 없이 도메인에서 초기값 설정)
+- `--workspace`는 워크스페이스 이름, prefix는 기본값 이름 앞 3글자 대문자
 - 출력은 테이블 + `--json` 플래그
 - `start`/`done` 단축 없이 `move`로 통일
 - `Canceled → Backlog` 복구 허용
@@ -361,7 +361,7 @@ MCP 도구:
 | Feature | 내용 | 의존성 |
 |---------|------|--------|
 | 17 (SEO-1) | MCP 서버 부트스트랩 — `rmcp` 크레이트, `seogi mcp-server` 명령어, stdio transport | 없음 |
-| 18 (SEO-2) | MCP 도구 구현 — project/status/task 도구 10개, 기존 workflow 재사용, `spawn_blocking` 래핑 | 17 |
+| 18 (SEO-2) | MCP 도구 구현 — workspace/status/task 도구 10개, 기존 workflow 재사용, `spawn_blocking` 래핑 | 17 |
 | 19 (SEO-3) | Claude Code MCP 등록 + README — install.sh/uninstall.sh에 MCP 설정 추가/제거, CLI/MCP 사용법 README 작성 | 18 |
 
 **결정 사항:**
@@ -445,4 +445,4 @@ MCP 도구:
 - 리포트: `seogi report`를 세션 중심에서 태스크 중심으로 완전 교체.
 - 코멘트 기능: PR description으로 충분. 별도 목적이 생기면 재검토.
 - 하니스별 메트릭: 하니스 관리 도구 선정/개발 후 연동 예정. seogi 내부에서는 만들지 않음.
-- 도메인 용어: project → workspace로 교체. "project"는 목표/기간이 명확한 작업을 의미하지만, 실제로는 태스크를 묶는 작업 공간으로 사용하고 있음. Claude Code 훅의 `project`/`project_path` 필드는 외부 스펙이므로 수신 시 매핑.
+- 도메인 용어: project → workspace로 교체 완료. "project"는 목표/기간이 명확한 작업을 의미하지만, 실제로는 태스크를 묶는 작업 공간으로 사용하고 있음. Claude Code 훅의 `project`/`project_path` 필드는 외부 스펙이므로 수신 시 매핑.
