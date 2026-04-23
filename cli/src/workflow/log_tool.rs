@@ -34,12 +34,12 @@ pub fn run(conn: &Connection, stdin_json: &str) -> Result<(), AdapterError> {
     let start_time = timing::read_and_remove_start_time(&timing_dir, &input.tool_use_id);
 
     // [Middle: Pure] 도메인 타입 생성
-    let project = log::extract_project_from_cwd(&input.cwd);
+    let workspace = log::extract_workspace_from_cwd(&input.cwd);
     let duration = start_time.map_or(Ms::zero(), |start| Ms::new(now.value() - start.value()));
     let tool_use = ToolUse::new(
         id,
         SessionId::new(input.session_id),
-        project,
+        workspace,
         input.cwd,
         input.tool_name,
         tool_input_str,
@@ -79,8 +79,8 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].session_id().as_str(), "sess-1");
         assert_eq!(results[0].tool_name(), "Bash");
-        assert_eq!(results[0].project(), "seogi");
-        assert_eq!(results[0].project_path(), "/Users/kim/projects/seogi");
+        assert_eq!(results[0].workspace(), "seogi");
+        assert_eq!(results[0].workspace_path(), "/Users/kim/projects/seogi");
         assert_eq!(results[0].tool_input(), r#"{"command":"ls"}"#);
         assert_eq!(results[0].duration(), Ms::zero());
     }

@@ -15,8 +15,8 @@ pub fn save_tool_use(conn: &Connection, tool_use: &ToolUse) -> Result<(), Adapte
         (
             tool_use.id(),
             tool_use.session_id().as_str(),
-            tool_use.project(),
-            tool_use.project_path(),
+            tool_use.workspace(),
+            tool_use.workspace_path(),
             tool_use.tool_name(),
             tool_use.tool_input(),
             tool_use.duration().value(),
@@ -57,8 +57,8 @@ pub fn save_tool_failure(
         (
             tool_failure.id(),
             tool_failure.session_id().as_str(),
-            tool_failure.project(),
-            tool_failure.project_path(),
+            tool_failure.workspace(),
+            tool_failure.workspace_path(),
             tool_failure.tool_name(),
             tool_failure.error(),
             tool_failure.timestamp().value(),
@@ -98,8 +98,8 @@ pub fn save_system_event(conn: &Connection, event: &SystemEvent) -> Result<(), A
         (
             event.id(),
             event.session_id().as_str(),
-            event.project(),
-            event.project_path(),
+            event.workspace(),
+            event.workspace_path(),
             event.event_type(),
             event.content(),
             event.timestamp().value(),

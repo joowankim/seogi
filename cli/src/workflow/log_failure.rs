@@ -28,11 +28,11 @@ pub fn run(conn: &Connection, stdin_json: &str) -> Result<(), AdapterError> {
     let timestamp = Timestamp::now();
 
     // [Middle: Pure] 도메인 타입 생성
-    let project = log::extract_project_from_cwd(&input.cwd);
+    let workspace = log::extract_workspace_from_cwd(&input.cwd);
     let tool_failure = ToolFailure::new(
         id,
         SessionId::new(input.session_id),
-        project,
+        workspace,
         input.cwd,
         input.tool_name,
         input.error,
@@ -72,8 +72,8 @@ mod tests {
         assert_eq!(results[0].session_id().as_str(), "sess-1");
         assert_eq!(results[0].tool_name(), "Bash");
         assert_eq!(results[0].error(), "Permission denied");
-        assert_eq!(results[0].project(), "seogi");
-        assert_eq!(results[0].project_path(), "/Users/kim/projects/seogi");
+        assert_eq!(results[0].workspace(), "seogi");
+        assert_eq!(results[0].workspace_path(), "/Users/kim/projects/seogi");
     }
 
     #[test]

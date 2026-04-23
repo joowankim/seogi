@@ -9,12 +9,12 @@ use crate::workflow;
 ///
 /// prefix 검증, 중복 prefix, DB 에러 시 `anyhow::Error`.
 pub fn create(conn: &Connection, name: &str, prefix: Option<&str>, goal: &str) -> Result<()> {
-    let project =
-        workflow::project::create(conn, name, prefix, goal).map_err(|e| anyhow::anyhow!("{e}"))?;
+    let workspace = workflow::workspace::create(conn, name, prefix, goal)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
     println!(
         "Created project \"{}\" ({})",
-        project.name(),
-        project.prefix()
+        workspace.name(),
+        workspace.prefix()
     );
     Ok(())
 }
@@ -25,16 +25,16 @@ pub fn create(conn: &Connection, name: &str, prefix: Option<&str>, goal: &str) -
 ///
 /// DB 에러, 직렬화 에러 시 `anyhow::Error`.
 pub fn list(conn: &Connection, json: bool) -> Result<()> {
-    let projects = workflow::project::list(conn).map_err(|e| anyhow::anyhow!("{e}"))?;
+    let workspaces = workflow::workspace::list(conn).map_err(|e| anyhow::anyhow!("{e}"))?;
     if json {
         println!(
             "{}",
-            serde_json::to_string_pretty(&projects)
+            serde_json::to_string_pretty(&workspaces)
                 .map_err(|e| anyhow::anyhow!("Failed to serialize: {e}"))?
         );
     } else {
         println!("{:<8} {:<20} GOAL", "PREFIX", "NAME");
-        for p in &projects {
+        for p in &workspaces {
             println!("{:<8} {:<20} {}", p.prefix(), p.name(), p.goal());
         }
     }

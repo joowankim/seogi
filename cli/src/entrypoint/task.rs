@@ -84,7 +84,7 @@ pub fn get(conn: &Connection, task_id: &str, json: bool) -> Result<()> {
         println!("Description: {}", row.description);
         println!("Label:       {}", row.label);
         println!("Status:      {}", row.status_name);
-        println!("Project:     {}", row.project_name);
+        println!("Project:     {}", row.workspace_name);
         println!("Created:     {}", row.created_at);
         println!("Updated:     {}", row.updated_at);
         if !deps.is_empty() {

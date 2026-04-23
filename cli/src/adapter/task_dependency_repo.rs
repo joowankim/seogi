@@ -77,15 +77,15 @@ pub fn list_blocked_task_ids(conn: &Connection) -> rusqlite::Result<Vec<String>>
 mod tests {
     use super::*;
     use crate::adapter::db::initialize_in_memory;
-    use crate::adapter::{project_repo, task_repo};
-    use crate::domain::project::{Project, ProjectPrefix};
+    use crate::adapter::{task_repo, workspace_repo};
     use crate::domain::task::{Label, Task};
+    use crate::domain::workspace::{Workspace, WorkspacePrefix};
 
     fn setup() -> Connection {
         let conn = initialize_in_memory().unwrap();
-        let prefix = ProjectPrefix::new("SEO").unwrap();
-        let project = Project::new("Seogi", &prefix, "goal", chrono::Utc::now()).unwrap();
-        project_repo::save(&conn, &project).unwrap();
+        let prefix = WorkspacePrefix::new("SEO").unwrap();
+        let workspace = Workspace::new("Seogi", &prefix, "goal", chrono::Utc::now()).unwrap();
+        workspace_repo::save(&conn, &workspace).unwrap();
 
         let statuses = crate::adapter::status_repo::list_all(&conn).unwrap();
         let backlog = statuses.iter().find(|s| s.name() == "backlog").unwrap();
@@ -97,7 +97,7 @@ mod tests {
             "desc1",
             Label::Feature,
             backlog.id(),
-            project.id(),
+            workspace.id(),
             chrono::Utc::now(),
         )
         .unwrap();
@@ -108,7 +108,7 @@ mod tests {
             "desc2",
             Label::Feature,
             backlog.id(),
-            project.id(),
+            workspace.id(),
             chrono::Utc::now(),
         )
         .unwrap();
@@ -119,7 +119,7 @@ mod tests {
             "desc3",
             Label::Feature,
             backlog.id(),
-            project.id(),
+            workspace.id(),
             chrono::Utc::now(),
         )
         .unwrap();

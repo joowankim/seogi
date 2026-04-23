@@ -7,9 +7,9 @@ use super::error::DomainError;
 /// 태스크 ID의 접두사로 사용된다 (e.g., `"SEO"` → `SEO-1`).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize)]
 #[serde(transparent)]
-pub struct ProjectPrefix(String);
+pub struct WorkspacePrefix(String);
 
-impl ProjectPrefix {
+impl WorkspacePrefix {
     /// 대문자 알파벳 3글자 검증 후 생성.
     ///
     /// # Errors
@@ -20,7 +20,7 @@ impl ProjectPrefix {
             Ok(Self(value.to_string()))
         } else {
             Err(DomainError::Validation(format!(
-                "ProjectPrefix must be exactly 3 uppercase ASCII letters, got: \"{value}\""
+                "WorkspacePrefix must be exactly 3 uppercase ASCII letters, got: \"{value}\""
             )))
         }
     }
@@ -34,7 +34,7 @@ impl ProjectPrefix {
         let chars: Vec<char> = name.chars().take(3).collect();
         if chars.len() < 3 || !chars.iter().all(char::is_ascii_alphabetic) {
             return Err(DomainError::Validation(format!(
-                "Cannot derive ProjectPrefix from name \"{name}\": first 3 characters must be ASCII letters. Use --prefix to specify manually."
+                "Cannot derive WorkspacePrefix from name \"{name}\": first 3 characters must be ASCII letters. Use --prefix to specify manually."
             )));
         }
         let prefix: String = chars.iter().map(char::to_ascii_uppercase).collect();
@@ -47,7 +47,7 @@ impl ProjectPrefix {
     }
 }
 
-impl std::fmt::Display for ProjectPrefix {
+impl std::fmt::Display for WorkspacePrefix {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -55,17 +55,17 @@ impl std::fmt::Display for ProjectPrefix {
 
 /// 태스크를 묶는 관리 단위.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
-pub struct Project {
+pub struct Workspace {
     id: String,
     name: String,
-    prefix: ProjectPrefix,
+    prefix: WorkspacePrefix,
     goal: String,
     next_seq: i64,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
 }
 
-impl Project {
+impl Workspace {
     /// 새 프로젝트를 생성한다.
     ///
     /// id는 UUID hex 32글자, `next_seq`은 1.
@@ -75,7 +75,7 @@ impl Project {
     /// name 또는 goal이 빈 문자열이면 `DomainError::Validation`.
     pub fn new(
         name: &str,
-        prefix: &ProjectPrefix,
+        prefix: &WorkspacePrefix,
         goal: &str,
         now: DateTime<Utc>,
     ) -> Result<Self, DomainError> {
@@ -107,7 +107,7 @@ impl Project {
     pub fn from_row(
         id: String,
         name: String,
-        prefix: ProjectPrefix,
+        prefix: WorkspacePrefix,
         goal: String,
         next_seq: i64,
         created_at: DateTime<Utc>,
@@ -135,7 +135,7 @@ impl Project {
     }
 
     #[must_use]
-    pub fn prefix(&self) -> &ProjectPrefix {
+    pub fn prefix(&self) -> &WorkspacePrefix {
         &self.prefix
     }
 
@@ -167,47 +167,47 @@ mod tests {
     // Q1: 대문자 알파벳 3글자 허용
     #[test]
     fn test_project_prefix_valid() {
-        assert!(ProjectPrefix::new("SEO").is_ok());
-        assert!(ProjectPrefix::new("LOC").is_ok());
-        assert!(ProjectPrefix::new("ABC").is_ok());
+        assert!(WorkspacePrefix::new("SEO").is_ok());
+        assert!(WorkspacePrefix::new("LOC").is_ok());
+        assert!(WorkspacePrefix::new("ABC").is_ok());
     }
 
     // Q2: 소문자, 숫자, 길이 부적합 거부
     #[test]
     fn test_project_prefix_invalid() {
-        assert!(ProjectPrefix::new("seo").is_err());
-        assert!(ProjectPrefix::new("SE1").is_err());
-        assert!(ProjectPrefix::new("SE").is_err());
-        assert!(ProjectPrefix::new("SEOG").is_err());
-        assert!(ProjectPrefix::new("").is_err());
-        assert!(ProjectPrefix::new("S O").is_err());
+        assert!(WorkspacePrefix::new("seo").is_err());
+        assert!(WorkspacePrefix::new("SE1").is_err());
+        assert!(WorkspacePrefix::new("SE").is_err());
+        assert!(WorkspacePrefix::new("SEOG").is_err());
+        assert!(WorkspacePrefix::new("").is_err());
+        assert!(WorkspacePrefix::new("S O").is_err());
     }
 
     // Q3: as_str() 반환값 일치
     #[test]
     fn test_project_prefix_as_str() {
-        let prefix = ProjectPrefix::new("SEO").unwrap();
+        let prefix = WorkspacePrefix::new("SEO").unwrap();
         assert_eq!(prefix.as_str(), "SEO");
     }
 
     // Q4: 이름에서 prefix 자동 생성
     #[test]
     fn test_project_prefix_from_name() {
-        let prefix = ProjectPrefix::from_name("Seogi").unwrap();
+        let prefix = WorkspacePrefix::from_name("Seogi").unwrap();
         assert_eq!(prefix.as_str(), "SEO");
 
-        let prefix = ProjectPrefix::from_name("hello").unwrap();
+        let prefix = WorkspacePrefix::from_name("hello").unwrap();
         assert_eq!(prefix.as_str(), "HEL");
     }
 
     // Q5: 짧은 이름, 비ASCII → 에러
     #[test]
     fn test_project_prefix_from_name_invalid() {
-        assert!(ProjectPrefix::from_name("ab").is_err());
-        assert!(ProjectPrefix::from_name("서기프").is_err());
-        assert!(ProjectPrefix::from_name("a").is_err());
-        assert!(ProjectPrefix::from_name("").is_err());
-        assert!(ProjectPrefix::from_name("12c").is_err());
+        assert!(WorkspacePrefix::from_name("ab").is_err());
+        assert!(WorkspacePrefix::from_name("서기프").is_err());
+        assert!(WorkspacePrefix::from_name("a").is_err());
+        assert!(WorkspacePrefix::from_name("").is_err());
+        assert!(WorkspacePrefix::from_name("12c").is_err());
     }
 
     fn now() -> DateTime<Utc> {
@@ -217,8 +217,8 @@ mod tests {
     // Q6: UUID hex 32글자
     #[test]
     fn test_project_new_id() {
-        let prefix = ProjectPrefix::new("SEO").unwrap();
-        let project = Project::new("Seogi", &prefix, "goal", now()).unwrap();
+        let prefix = WorkspacePrefix::new("SEO").unwrap();
+        let project = Workspace::new("Seogi", &prefix, "goal", now()).unwrap();
         assert_eq!(project.id().len(), 32);
         assert!(project.id().chars().all(|c| c.is_ascii_hexdigit()));
     }
@@ -226,8 +226,8 @@ mod tests {
     // Q7: next_seq == 1
     #[test]
     fn test_project_new_next_seq() {
-        let prefix = ProjectPrefix::new("SEO").unwrap();
-        let project = Project::new("Seogi", &prefix, "goal", now()).unwrap();
+        let prefix = WorkspacePrefix::new("SEO").unwrap();
+        let project = Workspace::new("Seogi", &prefix, "goal", now()).unwrap();
         assert_eq!(project.next_seq(), 1);
     }
 
@@ -235,8 +235,8 @@ mod tests {
     #[test]
     fn test_project_new_timestamps() {
         let ts = now();
-        let prefix = ProjectPrefix::new("SEO").unwrap();
-        let project = Project::new("Seogi", &prefix, "goal", ts).unwrap();
+        let prefix = WorkspacePrefix::new("SEO").unwrap();
+        let project = Workspace::new("Seogi", &prefix, "goal", ts).unwrap();
 
         assert_eq!(project.created_at(), ts);
         assert_eq!(project.updated_at(), ts);
@@ -245,8 +245,8 @@ mod tests {
     // Q9: 빈 name 또는 goal → 에러
     #[test]
     fn test_project_new_empty_name_or_goal() {
-        let prefix = ProjectPrefix::new("SEO").unwrap();
-        assert!(Project::new("", &prefix, "goal", now()).is_err());
-        assert!(Project::new("Seogi", &prefix, "", now()).is_err());
+        let prefix = WorkspacePrefix::new("SEO").unwrap();
+        assert!(Workspace::new("", &prefix, "goal", now()).is_err());
+        assert!(Workspace::new("Seogi", &prefix, "", now()).is_err());
     }
 }

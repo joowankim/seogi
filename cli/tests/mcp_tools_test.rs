@@ -657,7 +657,7 @@ fn task_list_filters_by_project() {
     let text = extract_text(&response);
     let data: Vec<serde_json::Value> = serde_json::from_str(text).unwrap();
     assert_eq!(data.len(), 1);
-    assert_eq!(data[0]["project_name"], "Alpha");
+    assert_eq!(data[0]["workspace_name"], "Alpha");
 
     session.shutdown();
 }
@@ -763,7 +763,7 @@ fn task_get_returns_task_detail() {
     assert_eq!(data["description"], "Task description here");
     assert_eq!(data["label"], "feature");
     assert_eq!(data["status_name"], "backlog");
-    assert_eq!(data["project_name"], "Proj");
+    assert_eq!(data["workspace_name"], "Proj");
     assert!(data["created_at"].is_string());
     assert!(data["updated_at"].is_string());
 

@@ -20,8 +20,10 @@ pub struct ToolInfo {
 pub struct LogEntry {
     pub timestamp: String,
     pub session_id: String,
-    pub project: String,
-    pub project_path: String,
+    #[serde(alias = "project")]
+    pub workspace: String,
+    #[serde(alias = "projectPath")]
+    pub workspace_path: String,
     pub role: String,
     #[serde(default)]
     pub content: Option<String>,

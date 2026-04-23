@@ -112,17 +112,17 @@ impl SeogiMcpServer {
         let conn = Arc::clone(&self.conn);
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().expect("db lock poisoned");
-            match workflow::project::create(
+            match workflow::workspace::create(
                 &conn,
                 &params.name,
                 params.prefix.as_deref(),
                 &params.goal,
             ) {
-                Ok(project) => {
+                Ok(workspace) => {
                     let json = serde_json::json!({
-                        "name": project.name(),
-                        "prefix": project.prefix().as_str(),
-                        "goal": project.goal(),
+                        "name": workspace.name(),
+                        "prefix": workspace.prefix().as_str(),
+                        "goal": workspace.goal(),
                     });
                     success_text(
                         serde_json::to_string_pretty(&json)
@@ -141,9 +141,9 @@ impl SeogiMcpServer {
         let conn = Arc::clone(&self.conn);
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().expect("db lock poisoned");
-            match workflow::project::list(&conn) {
-                Ok(projects) => {
-                    let json: Vec<serde_json::Value> = projects
+            match workflow::workspace::list(&conn) {
+                Ok(workspaces) => {
+                    let json: Vec<serde_json::Value> = workspaces
                         .iter()
                         .map(|p| {
                             serde_json::json!({

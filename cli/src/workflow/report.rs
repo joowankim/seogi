@@ -78,9 +78,9 @@ pub fn run(
     // project 필터 적용 및 title/project_name 수집
     let mut filtered_tasks: Vec<(String, String)> = Vec::new(); // (task_id, title)
     for task_id in &task_ids {
-        if let Some((title, project_name)) = task_repo::find_title_and_project(conn, task_id)? {
+        if let Some((title, workspace_name)) = task_repo::find_title_and_workspace(conn, task_id)? {
             if let Some(filter_project) = project
-                && project_name != filter_project
+                && workspace_name != filter_project
             {
                 continue;
             }
@@ -209,10 +209,11 @@ fn compute_tokens(
     for tu in &tool_uses {
         let key = (
             tu.session_id().as_str().to_string(),
-            tu.project_path().to_string(),
+            tu.workspace_path().to_string(),
         );
         if seen.insert(key) {
-            let usage = transcript::read_token_usage(tu.project_path(), tu.session_id().as_str())?;
+            let usage =
+                transcript::read_token_usage(tu.workspace_path(), tu.session_id().as_str())?;
             total = total + usage;
         }
     }
@@ -224,17 +225,17 @@ fn compute_tokens(
 mod tests {
     use super::*;
     use crate::adapter::db::initialize_in_memory;
-    use crate::adapter::{log_repo, project_repo, status_repo, task_event_repo, task_repo};
+    use crate::adapter::{log_repo, status_repo, task_event_repo, task_repo, workspace_repo};
     use crate::domain::log::ToolUse;
-    use crate::domain::project::{Project, ProjectPrefix};
     use crate::domain::status::StatusCategory;
     use crate::domain::task::{Label, Task, TaskEvent};
     use crate::domain::value::{Ms, SessionId, Timestamp};
+    use crate::domain::workspace::{Workspace, WorkspacePrefix};
 
     fn setup_with_completed_task(conn: &Connection) {
-        let prefix = ProjectPrefix::new("SEO").unwrap();
-        let project = Project::new("Seogi", &prefix, "goal", chrono::Utc::now()).unwrap();
-        project_repo::save(conn, &project).unwrap();
+        let prefix = WorkspacePrefix::new("SEO").unwrap();
+        let workspace = Workspace::new("Seogi", &prefix, "goal", chrono::Utc::now()).unwrap();
+        workspace_repo::save(conn, &workspace).unwrap();
 
         let statuses = status_repo::list_all(conn).unwrap();
         let backlog = statuses
@@ -249,7 +250,7 @@ mod tests {
             "description",
             Label::Feature,
             backlog.id(),
-            project.id(),
+            workspace.id(),
             chrono::Utc::now(),
         )
         .unwrap();
@@ -439,9 +440,9 @@ mod tests {
     fn run_with_no_flow_efficiency_returns_dash() {
         // Completed 이벤트만 있고 Started가 없는 태스크 → cycle_time=None → flow_efficiency=None
         let conn = initialize_in_memory().unwrap();
-        let prefix = ProjectPrefix::new("TST").unwrap();
-        let project = Project::new("Test", &prefix, "goal", chrono::Utc::now()).unwrap();
-        project_repo::save(&conn, &project).unwrap();
+        let prefix = WorkspacePrefix::new("TST").unwrap();
+        let workspace = Workspace::new("Test", &prefix, "goal", chrono::Utc::now()).unwrap();
+        workspace_repo::save(&conn, &workspace).unwrap();
 
         let statuses = status_repo::list_all(&conn).unwrap();
         let backlog = statuses
@@ -456,7 +457,7 @@ mod tests {
             "desc",
             Label::Feature,
             backlog.id(),
-            project.id(),
+            workspace.id(),
             chrono::Utc::now(),
         )
         .unwrap();

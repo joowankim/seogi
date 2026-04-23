@@ -4,10 +4,10 @@ use chrono::DateTime;
 use rusqlite::Row;
 
 use crate::domain::log::{SystemEvent, ToolFailure, ToolUse};
-use crate::domain::project::{Project, ProjectPrefix};
 use crate::domain::status::{Status, StatusCategory};
 use crate::domain::task::TaskEvent;
 use crate::domain::value::{Ms, SessionId, Timestamp};
+use crate::domain::workspace::{Workspace, WorkspacePrefix};
 
 /// `tool_uses` 테이블의 한 행을 `ToolUse` 도메인 타입으로 변환한다.
 ///
@@ -58,12 +58,12 @@ fn parse_datetime(row: &Row<'_>, column: &str) -> rusqlite::Result<chrono::DateT
 /// # Errors
 ///
 /// 컬럼 읽기 실패 시 `rusqlite::Error`.
-pub fn project_from_row(row: &Row<'_>) -> rusqlite::Result<Project> {
+pub fn workspace_from_row(row: &Row<'_>) -> rusqlite::Result<Workspace> {
     let prefix_str: String = row.get("prefix")?;
-    let prefix = ProjectPrefix::new(&prefix_str).map_err(|e| {
+    let prefix = WorkspacePrefix::new(&prefix_str).map_err(|e| {
         rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(e))
     })?;
-    Ok(Project::from_row(
+    Ok(Workspace::from_row(
         row.get("id")?,
         row.get("name")?,
         prefix,
@@ -105,7 +105,7 @@ pub fn task_list_row_from_row(
         description: row.get("description")?,
         label: row.get("label")?,
         status_name: row.get("status_name")?,
-        project_name: row.get("project_name")?,
+        workspace_name: row.get("workspace_name")?,
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
     })
