@@ -3,7 +3,7 @@ use rusqlite::Connection;
 
 use crate::workflow;
 
-/// `seogi project create` 핸들러.
+/// `seogi workspace create` 핸들러.
 ///
 /// # Errors
 ///
@@ -12,14 +12,14 @@ pub fn create(conn: &Connection, name: &str, prefix: Option<&str>, goal: &str) -
     let workspace = workflow::workspace::create(conn, name, prefix, goal)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     println!(
-        "Created project \"{}\" ({})",
+        "Created workspace \"{}\" ({})",
         workspace.name(),
         workspace.prefix()
     );
     Ok(())
 }
 
-/// `seogi project list` 핸들러.
+/// `seogi workspace list` 핸들러.
 ///
 /// # Errors
 ///

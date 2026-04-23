@@ -24,10 +24,10 @@ enum Commands {
     },
     /// JSONL 로그를 `SQLite`로 마이그레이션
     Migrate,
-    /// 프로젝트 관리
-    Project {
+    /// 워크스페이스 관리
+    Workspace {
         #[command(subcommand)]
-        action: ProjectAction,
+        action: WorkspaceAction,
     },
     /// 상태 관리
     Status {
@@ -52,9 +52,9 @@ enum Commands {
         /// 종료 날짜 (YYYY-MM-DD)
         #[arg(long)]
         to: String,
-        /// 프로젝트 이름 필터
+        /// 워크스페이스 이름 필터
         #[arg(long)]
-        project: Option<String>,
+        workspace: Option<String>,
         /// 상세 출력
         #[arg(long)]
         detail: bool,
@@ -64,20 +64,20 @@ enum Commands {
 }
 
 #[derive(Subcommand)]
-enum ProjectAction {
-    /// 프로젝트 생성
+enum WorkspaceAction {
+    /// 워크스페이스 생성
     Create {
-        /// 프로젝트 이름
+        /// 워크스페이스 이름
         #[arg(long)]
         name: String,
         /// 대문자 알파벳 3글자 (미지정 시 이름 앞 3글자 대문자)
         #[arg(long)]
         prefix: Option<String>,
-        /// 프로젝트 목표
+        /// 워크스페이스 목표
         #[arg(long)]
         goal: String,
     },
-    /// 프로젝트 목록 조회
+    /// 워크스페이스 목록 조회
     List {
         /// JSON 형식으로 출력
         #[arg(long)]
@@ -121,9 +121,9 @@ enum StatusAction {
 enum TaskAction {
     /// 태스크 생성
     Create {
-        /// 프로젝트 이름
+        /// 워크스페이스 이름
         #[arg(long)]
-        project: String,
+        workspace: String,
         /// 태스크 제목
         #[arg(long)]
         title: String,
@@ -139,9 +139,9 @@ enum TaskAction {
     },
     /// 태스크 목록 조회
     List {
-        /// 프로젝트 이름 필터
+        /// 워크스페이스 이름 필터
         #[arg(long)]
-        project: Option<String>,
+        workspace: Option<String>,
         /// 상태 이름 필터
         #[arg(long)]
         status: Option<String>,
@@ -252,14 +252,14 @@ fn main() -> Result<()> {
                 summary.tool_uses, summary.tool_failures, summary.skipped, summary.files
             );
         }
-        Commands::Project { action } => {
+        Commands::Workspace { action } => {
             let conn = open_db()?;
             match action {
-                ProjectAction::Create { name, prefix, goal } => {
-                    seogi::entrypoint::project::create(&conn, &name, prefix.as_deref(), &goal)?;
+                WorkspaceAction::Create { name, prefix, goal } => {
+                    seogi::entrypoint::workspace::create(&conn, &name, prefix.as_deref(), &goal)?;
                 }
-                ProjectAction::List { json } => {
-                    seogi::entrypoint::project::list(&conn, json)?;
+                WorkspaceAction::List { json } => {
+                    seogi::entrypoint::workspace::list(&conn, json)?;
                 }
             }
         }
@@ -284,7 +284,7 @@ fn main() -> Result<()> {
             let conn = open_db()?;
             match action {
                 TaskAction::Create {
-                    project,
+                    workspace,
                     title,
                     description,
                     label,
@@ -292,7 +292,7 @@ fn main() -> Result<()> {
                 } => {
                     seogi::entrypoint::task::create(
                         &conn,
-                        &project,
+                        &workspace,
                         &title,
                         &description,
                         &label,
@@ -300,14 +300,14 @@ fn main() -> Result<()> {
                     )?;
                 }
                 TaskAction::List {
-                    project,
+                    workspace,
                     status,
                     label,
                     json,
                 } => {
                     seogi::entrypoint::task::list(
                         &conn,
-                        project.as_deref(),
+                        workspace.as_deref(),
                         status.as_deref(),
                         label.as_deref(),
                         json,
@@ -344,12 +344,12 @@ fn main() -> Result<()> {
         Commands::Report {
             from,
             to,
-            project,
+            workspace,
             detail,
         } => {
             let conn = open_db()?;
             let output =
-                seogi::workflow::report::run(&conn, &from, &to, project.as_deref(), detail)
+                seogi::workflow::report::run(&conn, &from, &to, workspace.as_deref(), detail)
                     .map_err(|e| anyhow::anyhow!("Failed to generate report: {e}"))?;
             print!("{output}");
         }

@@ -20,7 +20,7 @@ struct SeogiMcpServer {
 // ── Parameter types ──
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
-struct ProjectCreateParams {
+struct WorkspaceCreateParams {
     name: String,
     #[serde(default)]
     prefix: Option<String>,
@@ -46,7 +46,7 @@ struct StatusDeleteParams {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct TaskCreateParams {
-    project: String,
+    workspace: String,
     title: String,
     description: String,
     label: String,
@@ -57,7 +57,7 @@ struct TaskCreateParams {
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct TaskListParams {
     #[serde(default)]
-    project: Option<String>,
+    workspace: Option<String>,
     #[serde(default)]
     status: Option<String>,
     #[serde(default)]
@@ -104,10 +104,10 @@ fn error_text(text: String) -> CallToolResult {
 
 #[tool_router]
 impl SeogiMcpServer {
-    #[tool(name = "project_create", description = "Create a new project")]
-    async fn project_create(
+    #[tool(name = "workspace_create", description = "Create a new workspace")]
+    async fn workspace_create(
         &self,
-        Parameters(params): Parameters<ProjectCreateParams>,
+        Parameters(params): Parameters<WorkspaceCreateParams>,
     ) -> CallToolResult {
         let conn = Arc::clone(&self.conn);
         tokio::task::spawn_blocking(move || {
@@ -136,8 +136,8 @@ impl SeogiMcpServer {
         .expect("spawn_blocking panicked")
     }
 
-    #[tool(name = "project_list", description = "List all projects")]
-    async fn project_list(&self) -> CallToolResult {
+    #[tool(name = "workspace_list", description = "List all workspaces")]
+    async fn workspace_list(&self) -> CallToolResult {
         let conn = Arc::clone(&self.conn);
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().expect("db lock poisoned");
@@ -267,7 +267,7 @@ impl SeogiMcpServer {
             let conn = conn.lock().expect("db lock poisoned");
             let task = match workflow::task::create(
                 &conn,
-                &params.project,
+                &params.workspace,
                 &params.title,
                 &params.description,
                 &params.label,
@@ -302,7 +302,7 @@ impl SeogiMcpServer {
             let conn = conn.lock().expect("db lock poisoned");
             match workflow::task::list(
                 &conn,
-                params.project.as_deref(),
+                params.workspace.as_deref(),
                 params.status.as_deref(),
                 params.label.as_deref(),
             ) {

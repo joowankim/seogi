@@ -3,10 +3,10 @@ mod common;
 use common::run_seogi;
 use rusqlite::Connection;
 
-fn create_project(db: &str) {
+fn create_workspace(db: &str) {
     let output = run_seogi(
         &[
-            "project",
+            "workspace",
             "create",
             "--name",
             "Seogi",
@@ -19,7 +19,7 @@ fn create_project(db: &str) {
     );
     assert!(
         output.status.success(),
-        "project create failed: {}",
+        "workspace create failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 }
@@ -31,13 +31,13 @@ fn test_task_create_success() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
 
     let output = run_seogi(
         &[
             "task",
             "create",
-            "--project",
+            "--workspace",
             "Seogi",
             "--title",
             "첫 번째 태스크",
@@ -112,19 +112,19 @@ fn test_task_create_success() {
 
 // Q25: 존재하지 않는 프로젝트 → 에러 출력
 #[test]
-fn test_task_create_unknown_project() {
+fn test_task_create_unknown_workspace() {
     let dir = tempfile::tempdir().unwrap();
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
     // DB 초기화 (run_seogi가 DB를 생성하도록 빈 list 실행)
-    run_seogi(&["project", "list"], db);
+    run_seogi(&["workspace", "list"], db);
 
     let output = run_seogi(
         &[
             "task",
             "create",
-            "--project",
+            "--workspace",
             "NonExistent",
             "--title",
             "태스크",
@@ -151,13 +151,13 @@ fn test_task_list_table() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
 
     run_seogi(
         &[
             "task",
             "create",
-            "--project",
+            "--workspace",
             "Seogi",
             "--title",
             "첫 번째",
@@ -172,7 +172,7 @@ fn test_task_list_table() {
         &[
             "task",
             "create",
-            "--project",
+            "--workspace",
             "Seogi",
             "--title",
             "두 번째",
@@ -208,13 +208,13 @@ fn test_task_list_json() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
 
     run_seogi(
         &[
             "task",
             "create",
-            "--project",
+            "--workspace",
             "Seogi",
             "--title",
             "JSON 테스트",
@@ -245,19 +245,26 @@ fn test_task_list_json() {
     assert_eq!(arr[0]["workspace_name"], "Seogi");
 }
 
-// Q28: task list 필터링 (project + label)
+// Q28: task list 필터링 (workspace + label)
 #[test]
 fn test_task_list_filtered() {
     let dir = tempfile::tempdir().unwrap();
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
 
     // 두 번째 프로젝트
     run_seogi(
         &[
-            "project", "create", "--name", "Local", "--prefix", "LOC", "--goal", "로컬",
+            "workspace",
+            "create",
+            "--name",
+            "Local",
+            "--prefix",
+            "LOC",
+            "--goal",
+            "로컬",
         ],
         db,
     );
@@ -267,7 +274,7 @@ fn test_task_list_filtered() {
         &[
             "task",
             "create",
-            "--project",
+            "--workspace",
             "Seogi",
             "--title",
             "Seogi feature",
@@ -282,7 +289,7 @@ fn test_task_list_filtered() {
         &[
             "task",
             "create",
-            "--project",
+            "--workspace",
             "Seogi",
             "--title",
             "Seogi bug",
@@ -299,7 +306,7 @@ fn test_task_list_filtered() {
         &[
             "task",
             "create",
-            "--project",
+            "--workspace",
             "Local",
             "--title",
             "Local feature",
@@ -311,12 +318,12 @@ fn test_task_list_filtered() {
         db,
     );
 
-    // --project Seogi --label feature → 1건만
+    // --workspace Seogi --label feature → 1건만
     let output = run_seogi(
         &[
             "task",
             "list",
-            "--project",
+            "--workspace",
             "Seogi",
             "--label",
             "feature",
@@ -344,7 +351,7 @@ fn create_task(db: &str, title: &str, label: &str) {
         &[
             "task",
             "create",
-            "--project",
+            "--workspace",
             "Seogi",
             "--title",
             title,
@@ -369,7 +376,7 @@ fn test_task_get_default_output() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
     create_task(db, "단일 조회 태스크", "feature");
 
     let output = run_seogi(&["task", "get", "SEO-1"], db);
@@ -395,7 +402,7 @@ fn test_task_get_json_output() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
     create_task(db, "JSON 조회", "bug");
 
     let output = run_seogi(&["task", "get", "SEO-1", "--json"], db);
@@ -425,7 +432,7 @@ fn test_task_get_not_found() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
 
     let output = run_seogi(&["task", "get", "SEO-99"], db);
 
@@ -441,7 +448,7 @@ fn test_task_update_title() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
     create_task(db, "원래 제목", "feature");
 
     let output = run_seogi(&["task", "update", "SEO-1", "--title", "변경된 제목"], db);
@@ -471,7 +478,7 @@ fn test_task_update_not_found() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
 
     let output = run_seogi(&["task", "update", "SEO-99", "--title", "new"], db);
 
@@ -487,7 +494,7 @@ fn test_task_update_no_options() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
     create_task(db, "제목", "feature");
 
     let output = run_seogi(&["task", "update", "SEO-1"], db);
@@ -502,7 +509,7 @@ fn test_task_update_combined() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
     create_task(db, "원래", "feature");
 
     let output = run_seogi(
@@ -543,7 +550,7 @@ fn test_task_move_success() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
     create_task(db, "태스크", "feature");
 
     let output = run_seogi(&["task", "move", "SEO-1", "todo"], db);
@@ -581,7 +588,7 @@ fn test_task_move_task_not_found() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
 
     let output = run_seogi(&["task", "move", "SEO-99", "todo"], db);
 
@@ -597,7 +604,7 @@ fn test_task_move_invalid_transition() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
     create_task(db, "태스크", "feature");
 
     let output = run_seogi(&["task", "move", "SEO-1", "done"], db);
@@ -618,7 +625,7 @@ fn test_task_move_same_status() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
     create_task(db, "태스크", "feature");
 
     let output = run_seogi(&["task", "move", "SEO-1", "backlog"], db);
@@ -633,7 +640,7 @@ fn test_task_depend_success() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
     create_task(db, "t1", "feature");
     create_task(db, "t2", "feature");
 
@@ -656,14 +663,14 @@ fn test_task_create_with_depends_on() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
     create_task(db, "t1", "feature");
 
     let output = run_seogi(
         &[
             "task",
             "create",
-            "--project",
+            "--workspace",
             "Seogi",
             "--title",
             "t2",
@@ -698,7 +705,7 @@ fn test_task_depend_not_found() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
     create_task(db, "t1", "feature");
 
     let output = run_seogi(&["task", "depend", "SEO-99", "--on", "SEO-1"], db);
@@ -712,7 +719,7 @@ fn test_task_undepend_success() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
     create_task(db, "t1", "feature");
     create_task(db, "t2", "feature");
 
@@ -733,7 +740,7 @@ fn test_task_list_blocked() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
     create_task(db, "t1", "feature");
     create_task(db, "t2", "feature");
 
@@ -751,7 +758,7 @@ fn test_task_get_with_dependencies() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
     create_task(db, "t1", "feature");
     create_task(db, "t2", "feature");
 
@@ -770,7 +777,7 @@ fn test_task_get_json_with_dependencies() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
     create_task(db, "t1", "feature");
     create_task(db, "t2", "feature");
 

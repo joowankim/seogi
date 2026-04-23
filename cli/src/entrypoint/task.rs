@@ -7,16 +7,16 @@ use crate::workflow;
 ///
 /// # Errors
 ///
-/// 프로젝트 미존재, 무효 라벨, 빈 제목/설명, DB 에러 시 `anyhow::Error`.
+/// 워크스페이스 미존재, 무효 라벨, 빈 제목/설명, DB 에러 시 `anyhow::Error`.
 pub fn create(
     conn: &Connection,
-    project: &str,
+    workspace: &str,
     title: &str,
     description: &str,
     label: &str,
     depends_on: Option<&str>,
 ) -> Result<()> {
-    let task = workflow::task::create(conn, project, title, description, label)
+    let task = workflow::task::create(conn, workspace, title, description, label)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     if let Some(dep) = depends_on {
         workflow::task::depend(conn, task.id(), dep).map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -32,13 +32,13 @@ pub fn create(
 /// DB 에러, 직렬화 에러 시 `anyhow::Error`.
 pub fn list(
     conn: &Connection,
-    project: Option<&str>,
+    workspace: Option<&str>,
     status: Option<&str>,
     label: Option<&str>,
     json: bool,
 ) -> Result<()> {
     let tasks =
-        workflow::task::list(conn, project, status, label).map_err(|e| anyhow::anyhow!("{e}"))?;
+        workflow::task::list(conn, workspace, status, label).map_err(|e| anyhow::anyhow!("{e}"))?;
     if json {
         println!(
             "{}",

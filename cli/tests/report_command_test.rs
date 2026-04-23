@@ -2,10 +2,10 @@ mod common;
 
 use common::run_seogi;
 
-fn create_project(db: &str) {
+fn create_workspace(db: &str) {
     let output = run_seogi(
         &[
-            "project",
+            "workspace",
             "create",
             "--name",
             "Seogi",
@@ -18,7 +18,7 @@ fn create_project(db: &str) {
     );
     assert!(
         output.status.success(),
-        "project create failed: {}",
+        "workspace create failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 }
@@ -28,7 +28,7 @@ fn create_task(db: &str) {
         &[
             "task",
             "create",
-            "--project",
+            "--workspace",
             "Seogi",
             "--title",
             "Test task",
@@ -62,7 +62,7 @@ fn test_report_no_completed_tasks() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
 
     let output = run_seogi(
         &["report", "--from", "2020-01-01", "--to", "2030-12-31"],
@@ -83,7 +83,7 @@ fn test_report_with_completed_task() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
     create_task(db);
 
     // Move task through workflow: backlog -> todo -> in_progress -> done
@@ -118,7 +118,7 @@ fn test_report_detail_flag() {
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
     create_task(db);
 
     move_task(db, "SEO-1", "todo");
@@ -152,21 +152,21 @@ fn test_report_detail_flag() {
     );
 }
 
-// E2E: report with --project filter
+// E2E: report with --workspace filter
 #[test]
-fn test_report_project_filter() {
+fn test_report_workspace_filter() {
     let dir = tempfile::tempdir().unwrap();
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    create_project(db);
+    create_workspace(db);
     create_task(db);
 
     move_task(db, "SEO-1", "todo");
     move_task(db, "SEO-1", "in_progress");
     move_task(db, "SEO-1", "done");
 
-    // Filter by matching project
+    // Filter by matching workspace
     let output = run_seogi(
         &[
             "report",
@@ -174,7 +174,7 @@ fn test_report_project_filter() {
             "2020-01-01",
             "--to",
             "2030-12-31",
-            "--project",
+            "--workspace",
             "Seogi",
         ],
         db,
@@ -183,10 +183,10 @@ fn test_report_project_filter() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         stdout.contains("SEO-1"),
-        "Expected task with matching project: {stdout}"
+        "Expected task with matching workspace: {stdout}"
     );
 
-    // Filter by non-matching project
+    // Filter by non-matching workspace
     let output = run_seogi(
         &[
             "report",
@@ -194,7 +194,7 @@ fn test_report_project_filter() {
             "2020-01-01",
             "--to",
             "2030-12-31",
-            "--project",
+            "--workspace",
             "OtherProject",
         ],
         db,
@@ -203,7 +203,7 @@ fn test_report_project_filter() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         stdout.contains("No completed tasks"),
-        "Expected no tasks for non-matching project: {stdout}"
+        "Expected no tasks for non-matching workspace: {stdout}"
     );
 }
 
