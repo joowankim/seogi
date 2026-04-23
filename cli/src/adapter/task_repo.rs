@@ -12,21 +12,21 @@ pub struct TaskListRow {
     pub description: String,
     pub label: String,
     pub status_name: String,
-    pub project_name: String,
+    pub workspace_name: String,
     pub created_at: String,
     pub updated_at: String,
 }
 
 /// 태스크 목록 조회 필터.
 pub struct TaskFilter<'a> {
-    pub project_name: Option<&'a str>,
+    pub workspace_name: Option<&'a str>,
     pub status_name: Option<&'a str>,
     pub label: Option<&'a str>,
 }
 
 const TASK_DETAIL_SELECT: &str = "\
     SELECT t.id, t.title, t.description, t.label, \
-    s.name AS status_name, p.name AS project_name, \
+    s.name AS status_name, p.name AS workspace_name, \
     t.created_at, t.updated_at \
     FROM tasks t \
     JOIN statuses s ON t.status_id = s.id \
@@ -46,7 +46,7 @@ pub fn save(conn: &Connection, task: &Task) -> rusqlite::Result<()> {
             task.description(),
             task.label().as_str(),
             task.status_id(),
-            task.project_id(),
+            task.workspace_id(),
             task.created_at().to_rfc3339(),
             task.updated_at().to_rfc3339(),
         ),
@@ -65,9 +65,9 @@ pub fn list_all(conn: &Connection, filter: &TaskFilter<'_>) -> rusqlite::Result<
     let mut sql = format!("{TASK_DETAIL_SELECT} WHERE 1=1");
     let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
-    if let Some(project_name) = filter.project_name {
+    if let Some(workspace_name) = filter.workspace_name {
         sql.push_str(" AND p.name = ?");
-        params.push(Box::new(project_name.to_string()));
+        params.push(Box::new(workspace_name.to_string()));
     }
     if let Some(status_name) = filter.status_name {
         sql.push_str(" AND s.name = ?");
@@ -138,7 +138,7 @@ pub fn find_created_at(conn: &Connection, task_id: &str) -> rusqlite::Result<Opt
 /// # Errors
 ///
 /// SELECT 실패 시 `rusqlite::Error`.
-pub fn find_title_and_project(
+pub fn find_title_and_workspace(
     conn: &Connection,
     task_id: &str,
 ) -> rusqlite::Result<Option<(String, String)>> {
@@ -218,17 +218,17 @@ pub fn update(
 mod tests {
     use super::*;
     use crate::adapter::db::initialize_in_memory;
-    use crate::adapter::{project_repo, status_repo};
-    use crate::domain::project::{Project, ProjectPrefix};
+    use crate::adapter::{status_repo, workspace_repo};
     use crate::domain::status::StatusCategory;
     use crate::domain::task::{Label, Task};
+    use crate::domain::workspace::{Workspace, WorkspacePrefix};
 
     fn setup() -> (rusqlite::Connection, String, String) {
         let conn = initialize_in_memory().unwrap();
-        let prefix = ProjectPrefix::new("SEO").unwrap();
-        let project = Project::new("Seogi", &prefix, "goal", chrono::Utc::now()).unwrap();
-        project_repo::save(&conn, &project).unwrap();
-        let project_id = project.id().to_string();
+        let prefix = WorkspacePrefix::new("SEO").unwrap();
+        let workspace = Workspace::new("Seogi", &prefix, "goal", chrono::Utc::now()).unwrap();
+        workspace_repo::save(&conn, &workspace).unwrap();
+        let workspace_id = workspace.id().to_string();
 
         // backlog 상태 가져오기 (시딩된 상태 중 backlog 카테고리)
         let statuses = status_repo::list_all(&conn).unwrap();
@@ -238,11 +238,11 @@ mod tests {
             .unwrap();
         let status_id = backlog.id().to_string();
 
-        (conn, project_id, status_id)
+        (conn, workspace_id, status_id)
     }
 
-    fn sample_task(prefix_str: &str, seq: i64, status_id: &str, project_id: &str) -> Task {
-        let prefix = ProjectPrefix::new(prefix_str).unwrap();
+    fn sample_task(prefix_str: &str, seq: i64, status_id: &str, workspace_id: &str) -> Task {
+        let prefix = WorkspacePrefix::new(prefix_str).unwrap();
         Task::new(
             &prefix,
             seq,
@@ -250,7 +250,7 @@ mod tests {
             "description",
             Label::Feature,
             status_id,
-            project_id,
+            workspace_id,
             chrono::Utc::now(),
         )
         .unwrap()
@@ -259,12 +259,12 @@ mod tests {
     // Q11: save 후 DB에서 조회 시 필드 일치
     #[test]
     fn test_task_repo_save_and_find() {
-        let (conn, project_id, status_id) = setup();
-        let task = sample_task("SEO", 1, &status_id, &project_id);
+        let (conn, workspace_id, status_id) = setup();
+        let task = sample_task("SEO", 1, &status_id, &workspace_id);
         save(&conn, &task).unwrap();
 
         let filter = TaskFilter {
-            project_name: None,
+            workspace_name: None,
             status_name: None,
             label: None,
         };
@@ -274,23 +274,23 @@ mod tests {
         assert_eq!(rows[0].title, "test task");
         assert_eq!(rows[0].label, "feature");
         assert_eq!(rows[0].status_name, "backlog");
-        assert_eq!(rows[0].project_name, "Seogi");
+        assert_eq!(rows[0].workspace_name, "Seogi");
     }
 
     // Q12: list_all 전체 반환
     #[test]
     fn test_task_repo_list_all() {
-        let (conn, project_id, status_id) = setup();
+        let (conn, workspace_id, status_id) = setup();
 
-        let task1 = sample_task("SEO", 1, &status_id, &project_id);
+        let task1 = sample_task("SEO", 1, &status_id, &workspace_id);
         let task2 = Task::new(
-            &ProjectPrefix::new("SEO").unwrap(),
+            &WorkspacePrefix::new("SEO").unwrap(),
             2,
             "second",
             "desc2",
             Label::Bug,
             &status_id,
-            &project_id,
+            &workspace_id,
             chrono::Utc::now(),
         )
         .unwrap();
@@ -298,7 +298,7 @@ mod tests {
         save(&conn, &task2).unwrap();
 
         let filter = TaskFilter {
-            project_name: None,
+            workspace_name: None,
             status_name: None,
             label: None,
         };
@@ -309,20 +309,20 @@ mod tests {
     // Q13: project 필터
     #[test]
     fn test_task_repo_list_filter_project() {
-        let (conn, project_id, status_id) = setup();
+        let (conn, workspace_id, status_id) = setup();
 
         // 두 번째 프로젝트
-        let prefix2 = ProjectPrefix::new("LOC").unwrap();
-        let project2 = Project::new("Local", &prefix2, "goal2", chrono::Utc::now()).unwrap();
-        project_repo::save(&conn, &project2).unwrap();
+        let prefix2 = WorkspacePrefix::new("LOC").unwrap();
+        let workspace2 = Workspace::new("Local", &prefix2, "goal2", chrono::Utc::now()).unwrap();
+        workspace_repo::save(&conn, &workspace2).unwrap();
 
-        let task1 = sample_task("SEO", 1, &status_id, &project_id);
-        let task2 = sample_task("LOC", 1, &status_id, project2.id());
+        let task1 = sample_task("SEO", 1, &status_id, &workspace_id);
+        let task2 = sample_task("LOC", 1, &status_id, workspace2.id());
         save(&conn, &task1).unwrap();
         save(&conn, &task2).unwrap();
 
         let filter = TaskFilter {
-            project_name: Some("Seogi"),
+            workspace_name: Some("Seogi"),
             status_name: None,
             label: None,
         };
@@ -334,21 +334,21 @@ mod tests {
     // Q14: status 필터
     #[test]
     fn test_task_repo_list_filter_status() {
-        let (conn, project_id, status_id) = setup();
+        let (conn, workspace_id, status_id) = setup();
 
         // todo 상태 찾기
         let statuses = status_repo::list_all(&conn).unwrap();
         let todo = statuses.iter().find(|s| s.name() == "todo").unwrap();
 
-        let task1 = sample_task("SEO", 1, &status_id, &project_id);
+        let task1 = sample_task("SEO", 1, &status_id, &workspace_id);
         let task2 = Task::new(
-            &ProjectPrefix::new("SEO").unwrap(),
+            &WorkspacePrefix::new("SEO").unwrap(),
             2,
             "todo task",
             "desc",
             Label::Feature,
             todo.id(),
-            &project_id,
+            &workspace_id,
             chrono::Utc::now(),
         )
         .unwrap();
@@ -356,7 +356,7 @@ mod tests {
         save(&conn, &task2).unwrap();
 
         let filter = TaskFilter {
-            project_name: None,
+            workspace_name: None,
             status_name: Some("backlog"),
             label: None,
         };
@@ -368,17 +368,17 @@ mod tests {
     // Q15: label 필터
     #[test]
     fn test_task_repo_list_filter_label() {
-        let (conn, project_id, status_id) = setup();
+        let (conn, workspace_id, status_id) = setup();
 
-        let task1 = sample_task("SEO", 1, &status_id, &project_id);
+        let task1 = sample_task("SEO", 1, &status_id, &workspace_id);
         let task2 = Task::new(
-            &ProjectPrefix::new("SEO").unwrap(),
+            &WorkspacePrefix::new("SEO").unwrap(),
             2,
             "bug task",
             "desc",
             Label::Bug,
             &status_id,
-            &project_id,
+            &workspace_id,
             chrono::Utc::now(),
         )
         .unwrap();
@@ -386,7 +386,7 @@ mod tests {
         save(&conn, &task2).unwrap();
 
         let filter = TaskFilter {
-            project_name: None,
+            workspace_name: None,
             status_name: None,
             label: Some("feature"),
         };
@@ -398,32 +398,32 @@ mod tests {
     // Q16: 복합 필터
     #[test]
     fn test_task_repo_list_filter_combined() {
-        let (conn, project_id, status_id) = setup();
+        let (conn, workspace_id, status_id) = setup();
 
-        let prefix2 = ProjectPrefix::new("LOC").unwrap();
-        let project2 = Project::new("Local", &prefix2, "goal2", chrono::Utc::now()).unwrap();
-        project_repo::save(&conn, &project2).unwrap();
+        let prefix2 = WorkspacePrefix::new("LOC").unwrap();
+        let workspace2 = Workspace::new("Local", &prefix2, "goal2", chrono::Utc::now()).unwrap();
+        workspace_repo::save(&conn, &workspace2).unwrap();
 
-        let task1 = sample_task("SEO", 1, &status_id, &project_id);
+        let task1 = sample_task("SEO", 1, &status_id, &workspace_id);
         let task2 = Task::new(
-            &ProjectPrefix::new("SEO").unwrap(),
+            &WorkspacePrefix::new("SEO").unwrap(),
             2,
             "seo bug",
             "desc",
             Label::Bug,
             &status_id,
-            &project_id,
+            &workspace_id,
             chrono::Utc::now(),
         )
         .unwrap();
         let task3 = Task::new(
-            &ProjectPrefix::new("LOC").unwrap(),
+            &WorkspacePrefix::new("LOC").unwrap(),
             1,
             "loc feature",
             "desc",
             Label::Feature,
             &status_id,
-            project2.id(),
+            workspace2.id(),
             chrono::Utc::now(),
         )
         .unwrap();
@@ -432,7 +432,7 @@ mod tests {
         save(&conn, &task3).unwrap();
 
         let filter = TaskFilter {
-            project_name: Some("Seogi"),
+            workspace_name: Some("Seogi"),
             status_name: Some("backlog"),
             label: Some("feature"),
         };
@@ -444,8 +444,8 @@ mod tests {
     // Q3: update title만 → title 변경, updated_at 갱신
     #[test]
     fn test_task_repo_update_title_only() {
-        let (conn, project_id, status_id) = setup();
-        let task = sample_task("SEO", 1, &status_id, &project_id);
+        let (conn, workspace_id, status_id) = setup();
+        let task = sample_task("SEO", 1, &status_id, &workspace_id);
         save(&conn, &task).unwrap();
 
         let params = TaskUpdate {
@@ -470,8 +470,8 @@ mod tests {
     // Q4: update 복합 → 모든 필드 변경
     #[test]
     fn test_task_repo_update_combined() {
-        let (conn, project_id, status_id) = setup();
-        let task = sample_task("SEO", 1, &status_id, &project_id);
+        let (conn, workspace_id, status_id) = setup();
+        let task = sample_task("SEO", 1, &status_id, &workspace_id);
         save(&conn, &task).unwrap();
 
         let params = TaskUpdate {
@@ -510,8 +510,8 @@ mod tests {
     // Q1: find_by_id_detailed 존재하는 id → Some(TaskListRow)
     #[test]
     fn test_task_repo_find_by_id_detailed_found() {
-        let (conn, project_id, status_id) = setup();
-        let task = sample_task("SEO", 1, &status_id, &project_id);
+        let (conn, workspace_id, status_id) = setup();
+        let task = sample_task("SEO", 1, &status_id, &workspace_id);
         save(&conn, &task).unwrap();
 
         let row = find_by_id_detailed(&conn, "SEO-1").unwrap();
@@ -522,7 +522,7 @@ mod tests {
         assert_eq!(row.description, "description");
         assert_eq!(row.label, "feature");
         assert_eq!(row.status_name, "backlog");
-        assert_eq!(row.project_name, "Seogi");
+        assert_eq!(row.workspace_name, "Seogi");
     }
 
     // Q2: find_by_id_detailed 없는 id → None
@@ -535,8 +535,8 @@ mod tests {
     // Q8: find_by_id 존재 → Some
     #[test]
     fn test_task_repo_find_by_id_found() {
-        let (conn, project_id, status_id) = setup();
-        let task = sample_task("SEO", 1, &status_id, &project_id);
+        let (conn, workspace_id, status_id) = setup();
+        let task = sample_task("SEO", 1, &status_id, &workspace_id);
         save(&conn, &task).unwrap();
 
         let found = find_by_id(&conn, "SEO-1").unwrap();
@@ -556,8 +556,8 @@ mod tests {
     // Q10: update_status 성공
     #[test]
     fn test_task_repo_update_status() {
-        let (conn, project_id, status_id) = setup();
-        let task = sample_task("SEO", 1, &status_id, &project_id);
+        let (conn, workspace_id, status_id) = setup();
+        let task = sample_task("SEO", 1, &status_id, &workspace_id);
         save(&conn, &task).unwrap();
 
         // todo 상태 찾기

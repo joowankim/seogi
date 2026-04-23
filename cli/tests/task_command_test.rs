@@ -242,7 +242,7 @@ fn test_task_list_json() {
     assert_eq!(arr[0]["title"], "JSON 테스트");
     assert_eq!(arr[0]["label"], "chore");
     assert_eq!(arr[0]["status_name"], "backlog");
-    assert_eq!(arr[0]["project_name"], "Seogi");
+    assert_eq!(arr[0]["workspace_name"], "Seogi");
 }
 
 // Q28: task list 필터링 (project + label)
@@ -412,7 +412,7 @@ fn test_task_get_json_output() {
     assert_eq!(parsed["title"], "JSON 조회");
     assert_eq!(parsed["label"], "bug");
     assert_eq!(parsed["status_name"], "backlog");
-    assert_eq!(parsed["project_name"], "Seogi");
+    assert_eq!(parsed["workspace_name"], "Seogi");
     assert!(parsed["description"].is_string());
     assert!(parsed["created_at"].is_string());
     assert!(parsed["updated_at"].is_string());

@@ -34,11 +34,11 @@ pub fn run_notification(conn: &Connection, stdin_json: &str) -> Result<(), Adapt
     let timestamp = Timestamp::now();
 
     // [Middle: Pure]
-    let project = log::extract_project_from_cwd(&input.cwd);
+    let workspace = log::extract_workspace_from_cwd(&input.cwd);
     let event = SystemEvent::new(
         id,
         SessionId::new(input.session_id),
-        project,
+        workspace,
         input.cwd,
         "Notification".to_string(),
         input.message.unwrap_or_default(),
@@ -65,11 +65,11 @@ pub fn run_stop(conn: &Connection, stdin_json: &str) -> Result<(), AdapterError>
     let timestamp = Timestamp::now();
 
     // [Middle: Pure]
-    let project = log::extract_project_from_cwd(&input.cwd);
+    let workspace = log::extract_workspace_from_cwd(&input.cwd);
     let event = SystemEvent::new(
         id,
         SessionId::new(input.session_id),
-        project,
+        workspace,
         input.cwd,
         "Stop".to_string(),
         input.stop_reason.unwrap_or_default(),
@@ -106,8 +106,8 @@ mod tests {
         assert_eq!(results[0].session_id().as_str(), "sess-1");
         assert_eq!(results[0].event_type(), "Notification");
         assert_eq!(results[0].content(), "Permission required for Bash");
-        assert_eq!(results[0].project(), "seogi");
-        assert_eq!(results[0].project_path(), "/Users/kim/projects/seogi");
+        assert_eq!(results[0].workspace(), "seogi");
+        assert_eq!(results[0].workspace_path(), "/Users/kim/projects/seogi");
     }
 
     #[test]
@@ -129,7 +129,7 @@ mod tests {
         assert_eq!(results[0].session_id().as_str(), "sess-1");
         assert_eq!(results[0].event_type(), "Stop");
         assert_eq!(results[0].content(), "end_turn");
-        assert_eq!(results[0].project(), "seogi");
+        assert_eq!(results[0].workspace(), "seogi");
     }
 
     #[test]

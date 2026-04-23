@@ -10,8 +10,8 @@ use super::value::{Ms, SessionId, Timestamp};
 pub struct ToolUse {
     id: String,
     session_id: SessionId,
-    project: String,
-    project_path: String,
+    workspace: String,
+    workspace_path: String,
     tool_name: String,
     tool_input: String,
     duration: Ms,
@@ -24,8 +24,8 @@ impl ToolUse {
     pub fn new(
         id: String,
         session_id: SessionId,
-        project: String,
-        project_path: String,
+        workspace: String,
+        workspace_path: String,
         tool_name: String,
         tool_input: String,
         duration: Ms,
@@ -34,8 +34,8 @@ impl ToolUse {
         Self {
             id,
             session_id,
-            project,
-            project_path,
+            workspace,
+            workspace_path,
             tool_name,
             tool_input,
             duration,
@@ -54,13 +54,13 @@ impl ToolUse {
     }
 
     #[must_use]
-    pub fn project(&self) -> &str {
-        &self.project
+    pub fn workspace(&self) -> &str {
+        &self.workspace
     }
 
     #[must_use]
-    pub fn project_path(&self) -> &str {
-        &self.project_path
+    pub fn workspace_path(&self) -> &str {
+        &self.workspace_path
     }
 
     #[must_use]
@@ -98,8 +98,8 @@ impl fmt::Display for ToolUse {
 pub struct ToolFailure {
     id: String,
     session_id: SessionId,
-    project: String,
-    project_path: String,
+    workspace: String,
+    workspace_path: String,
     tool_name: String,
     error: String,
     timestamp: Timestamp,
@@ -111,8 +111,8 @@ impl ToolFailure {
     pub fn new(
         id: String,
         session_id: SessionId,
-        project: String,
-        project_path: String,
+        workspace: String,
+        workspace_path: String,
         tool_name: String,
         error: String,
         timestamp: Timestamp,
@@ -120,8 +120,8 @@ impl ToolFailure {
         Self {
             id,
             session_id,
-            project,
-            project_path,
+            workspace,
+            workspace_path,
             tool_name,
             error,
             timestamp,
@@ -139,13 +139,13 @@ impl ToolFailure {
     }
 
     #[must_use]
-    pub fn project(&self) -> &str {
-        &self.project
+    pub fn workspace(&self) -> &str {
+        &self.workspace
     }
 
     #[must_use]
-    pub fn project_path(&self) -> &str {
-        &self.project_path
+    pub fn workspace_path(&self) -> &str {
+        &self.workspace_path
     }
 
     #[must_use]
@@ -182,8 +182,8 @@ impl fmt::Display for ToolFailure {
 pub struct SystemEvent {
     id: String,
     session_id: SessionId,
-    project: String,
-    project_path: String,
+    workspace: String,
+    workspace_path: String,
     event_type: String,
     content: String,
     timestamp: Timestamp,
@@ -195,8 +195,8 @@ impl SystemEvent {
     pub fn new(
         id: String,
         session_id: SessionId,
-        project: String,
-        project_path: String,
+        workspace: String,
+        workspace_path: String,
         event_type: String,
         content: String,
         timestamp: Timestamp,
@@ -204,8 +204,8 @@ impl SystemEvent {
         Self {
             id,
             session_id,
-            project,
-            project_path,
+            workspace,
+            workspace_path,
             event_type,
             content,
             timestamp,
@@ -223,13 +223,13 @@ impl SystemEvent {
     }
 
     #[must_use]
-    pub fn project(&self) -> &str {
-        &self.project
+    pub fn workspace(&self) -> &str {
+        &self.workspace
     }
 
     #[must_use]
-    pub fn project_path(&self) -> &str {
-        &self.project_path
+    pub fn workspace_path(&self) -> &str {
+        &self.workspace_path
     }
 
     #[must_use]
@@ -258,7 +258,7 @@ impl fmt::Display for SystemEvent {
 ///
 /// 경로의 마지막 컴포넌트를 반환한다. 루트(`/`) 등 컴포넌트가 없으면 `"unknown"`을 반환한다.
 #[must_use]
-pub fn extract_project_from_cwd(cwd: &str) -> String {
+pub fn extract_workspace_from_cwd(cwd: &str) -> String {
     std::path::Path::new(cwd).file_name().map_or_else(
         || "unknown".to_string(),
         |name| name.to_string_lossy().into_owned(),
@@ -288,8 +288,8 @@ mod tests {
 
         assert_eq!(tu.id(), "abc123");
         assert_eq!(tu.session_id().as_str(), "sess-1");
-        assert_eq!(tu.project(), "seogi");
-        assert_eq!(tu.project_path(), "/Users/kim/projects/seogi");
+        assert_eq!(tu.workspace(), "seogi");
+        assert_eq!(tu.workspace_path(), "/Users/kim/projects/seogi");
         assert_eq!(tu.tool_name(), "Bash");
         assert_eq!(tu.tool_input(), r#"{"command":"ls"}"#);
         assert_eq!(tu.duration(), Ms::zero());
@@ -301,15 +301,15 @@ mod tests {
     #[test]
     fn extract_project_from_normal_path() {
         assert_eq!(
-            extract_project_from_cwd("/Users/kim/projects/seogi"),
+            extract_workspace_from_cwd("/Users/kim/projects/seogi"),
             "seogi"
         );
-        assert_eq!(extract_project_from_cwd("/home/user/my-app"), "my-app");
+        assert_eq!(extract_workspace_from_cwd("/home/user/my-app"), "my-app");
     }
 
     #[test]
     fn extract_project_from_root_path() {
-        assert_eq!(extract_project_from_cwd("/"), "unknown");
+        assert_eq!(extract_workspace_from_cwd("/"), "unknown");
     }
 
     #[test]
@@ -336,8 +336,8 @@ mod tests {
 
         assert_eq!(tf.id(), "fail123");
         assert_eq!(tf.session_id().as_str(), "sess-1");
-        assert_eq!(tf.project(), "seogi");
-        assert_eq!(tf.project_path(), "/Users/kim/projects/seogi");
+        assert_eq!(tf.workspace(), "seogi");
+        assert_eq!(tf.workspace_path(), "/Users/kim/projects/seogi");
         assert_eq!(tf.tool_name(), "Bash");
         assert_eq!(tf.error(), "Permission denied");
         assert_eq!(tf.timestamp(), Timestamp::new(1_713_000_000_000));
@@ -369,8 +369,8 @@ mod tests {
 
         assert_eq!(se.id(), "evt123");
         assert_eq!(se.session_id().as_str(), "sess-1");
-        assert_eq!(se.project(), "seogi");
-        assert_eq!(se.project_path(), "/Users/kim/projects/seogi");
+        assert_eq!(se.workspace(), "seogi");
+        assert_eq!(se.workspace_path(), "/Users/kim/projects/seogi");
         assert_eq!(se.event_type(), "Notification");
         assert_eq!(se.content(), "Permission required");
         assert_eq!(se.timestamp(), Timestamp::new(1_713_000_000_000));

@@ -40,8 +40,8 @@ pub fn convert_entry(entry: &LogEntry) -> Option<MigratedRecord> {
         Some(MigratedRecord::Failure(ToolFailure::new(
             id,
             SessionId::new(&entry.session_id),
-            entry.project.clone(),
-            entry.project_path.clone(),
+            entry.workspace.clone(),
+            entry.workspace_path.clone(),
             tool.name.clone(),
             error,
             Timestamp::new(ts),
@@ -53,8 +53,8 @@ pub fn convert_entry(entry: &LogEntry) -> Option<MigratedRecord> {
         Some(MigratedRecord::Use(ToolUse::new(
             id,
             SessionId::new(&entry.session_id),
-            entry.project.clone(),
-            entry.project_path.clone(),
+            entry.workspace.clone(),
+            entry.workspace_path.clone(),
             tool.name.clone(),
             tool_input_str,
             duration,
@@ -91,8 +91,8 @@ mod tests {
         LogEntry {
             timestamp: "2026-04-07T11:00:00.000Z".to_string(),
             session_id: "sess-1".to_string(),
-            project: "test".to_string(),
-            project_path: "/test".to_string(),
+            workspace: "test".to_string(),
+            workspace_path: "/test".to_string(),
             role: "assistant".to_string(),
             content: None,
             tool: Some(ToolInfo {
@@ -143,8 +143,8 @@ mod tests {
         let entry = LogEntry {
             timestamp: "2026-04-07T11:00:00.000Z".to_string(),
             session_id: "sess-1".to_string(),
-            project: "test".to_string(),
-            project_path: "/test".to_string(),
+            workspace: "test".to_string(),
+            workspace_path: "/test".to_string(),
             role: "system".to_string(),
             content: Some("[stop] end_turn".to_string()),
             tool: None,

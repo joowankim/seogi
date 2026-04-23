@@ -3,7 +3,9 @@ use std::str::FromStr;
 use chrono::Utc;
 use rusqlite::Connection;
 
-use crate::adapter::{project_repo, status_repo, task_dependency_repo, task_event_repo, task_repo};
+use crate::adapter::{
+    status_repo, task_dependency_repo, task_event_repo, task_repo, workspace_repo,
+};
 use crate::domain::error::DomainError;
 use crate::domain::status::StatusCategory;
 use crate::domain::task::{CLI_SESSION_ID, Label, Task, TaskEvent};
@@ -19,15 +21,16 @@ use crate::domain::value::Timestamp;
 /// 프로젝트 미존재, 무효 라벨, backlog 상태 부재, DB 에러 시 `DomainError`.
 pub fn create(
     conn: &Connection,
-    project_name: &str,
+    workspace_name: &str,
     title: &str,
     description: &str,
     label_str: &str,
 ) -> Result<Task, DomainError> {
     let label = Label::from_str(label_str)?;
 
-    let project = project_repo::find_by_name(conn, project_name)?
-        .ok_or_else(|| DomainError::Validation(format!("Project not found: \"{project_name}\"")))?;
+    let workspace = workspace_repo::find_by_name(conn, workspace_name)?.ok_or_else(|| {
+        DomainError::Validation(format!("Project not found: \"{workspace_name}\""))
+    })?;
 
     let backlog_status = status_repo::find_by_category(conn, StatusCategory::Backlog.as_str())?
         .ok_or_else(|| {
@@ -36,13 +39,13 @@ pub fn create(
 
     let now = Utc::now();
     let task = Task::new(
-        project.prefix(),
-        project.next_seq(),
+        workspace.prefix(),
+        workspace.next_seq(),
         title,
         description,
         label,
         backlog_status.id(),
-        project.id(),
+        workspace.id(),
         now,
     )?;
 
@@ -58,7 +61,7 @@ pub fn create(
     );
     task_event_repo::save(conn, &event)?;
 
-    project_repo::increment_next_seq(conn, project.id())?;
+    workspace_repo::increment_next_seq(conn, workspace.id())?;
 
     Ok(task)
 }
@@ -146,7 +149,7 @@ pub fn blocked_task_ids(
 /// 무효 라벨, DB 에러 시 `DomainError`.
 pub fn list(
     conn: &Connection,
-    project_name: Option<&str>,
+    workspace_name: Option<&str>,
     status_name: Option<&str>,
     label_str: Option<&str>,
 ) -> Result<Vec<task_repo::TaskListRow>, DomainError> {
@@ -154,7 +157,7 @@ pub fn list(
         Label::from_str(l)?;
     }
     let filter = task_repo::TaskFilter {
-        project_name,
+        workspace_name,
         status_name,
         label: label_str,
     };
@@ -286,13 +289,13 @@ pub fn move_task(
 mod tests {
     use super::*;
     use crate::adapter::db::initialize_in_memory;
-    use crate::adapter::project_repo;
-    use crate::domain::project::{Project, ProjectPrefix};
+    use crate::adapter::workspace_repo;
+    use crate::domain::workspace::{Workspace, WorkspacePrefix};
 
     fn setup_project(conn: &Connection) {
-        let prefix = ProjectPrefix::new("SEO").unwrap();
-        let project = Project::new("Seogi", &prefix, "goal", Utc::now()).unwrap();
-        project_repo::save(conn, &project).unwrap();
+        let prefix = WorkspacePrefix::new("SEO").unwrap();
+        let workspace = Workspace::new("Seogi", &prefix, "goal", Utc::now()).unwrap();
+        workspace_repo::save(conn, &workspace).unwrap();
     }
 
     // Q19: create 성공 시 Task 반환, next_seq 증가, task_events 1건
@@ -306,8 +309,10 @@ mod tests {
         assert_eq!(task.label(), Label::Feature);
 
         // next_seq 증가 확인
-        let project = project_repo::find_by_name(&conn, "Seogi").unwrap().unwrap();
-        assert_eq!(project.next_seq(), 2);
+        let workspace = workspace_repo::find_by_name(&conn, "Seogi")
+            .unwrap()
+            .unwrap();
+        assert_eq!(workspace.next_seq(), 2);
 
         // task_events 확인
         let count: i64 = conn
@@ -370,7 +375,7 @@ mod tests {
         assert_eq!(row.description, "desc");
         assert_eq!(row.label, "feature");
         assert_eq!(row.status_name, "backlog");
-        assert_eq!(row.project_name, "Seogi");
+        assert_eq!(row.workspace_name, "Seogi");
     }
 
     // Q4: get 없는 태스크 → DomainError

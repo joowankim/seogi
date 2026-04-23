@@ -4,8 +4,8 @@ use std::str::FromStr;
 use chrono::{DateTime, Utc};
 
 use super::error::DomainError;
-use super::project::ProjectPrefix;
 use super::value::Timestamp;
+use super::workspace::WorkspacePrefix;
 
 /// CLI에서 생성한 이벤트의 `session_id`.
 pub const CLI_SESSION_ID: &str = "CLI";
@@ -65,7 +65,7 @@ pub struct Task {
     description: String,
     label: Label,
     status_id: String,
-    project_id: String,
+    workspace_id: String,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
 }
@@ -80,13 +80,13 @@ impl Task {
     /// title 또는 description이 빈 문자열이면 `DomainError::Validation`.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        prefix: &ProjectPrefix,
+        prefix: &WorkspacePrefix,
         seq: i64,
         title: &str,
         description: &str,
         label: Label,
         status_id: &str,
-        project_id: &str,
+        workspace_id: &str,
         now: DateTime<Utc>,
     ) -> Result<Self, DomainError> {
         if title.is_empty() {
@@ -105,7 +105,7 @@ impl Task {
             description: description.to_string(),
             label,
             status_id: status_id.to_string(),
-            project_id: project_id.to_string(),
+            workspace_id: workspace_id.to_string(),
             created_at: now,
             updated_at: now,
         })
@@ -120,7 +120,7 @@ impl Task {
         description: String,
         label: Label,
         status_id: String,
-        project_id: String,
+        workspace_id: String,
         created_at: DateTime<Utc>,
         updated_at: DateTime<Utc>,
     ) -> Self {
@@ -130,7 +130,7 @@ impl Task {
             description,
             label,
             status_id,
-            project_id,
+            workspace_id,
             created_at,
             updated_at,
         }
@@ -162,8 +162,8 @@ impl Task {
     }
 
     #[must_use]
-    pub fn project_id(&self) -> &str {
-        &self.project_id
+    pub fn workspace_id(&self) -> &str {
+        &self.workspace_id
     }
 
     #[must_use]
@@ -308,8 +308,8 @@ mod tests {
         Utc::now()
     }
 
-    fn prefix() -> ProjectPrefix {
-        ProjectPrefix::new("SEO").unwrap()
+    fn prefix() -> WorkspacePrefix {
+        WorkspacePrefix::new("SEO").unwrap()
     }
 
     // Q5: Task::new id 형식
@@ -339,7 +339,7 @@ mod tests {
         assert_eq!(task.description(), "desc");
         assert_eq!(task.label(), Label::Bug);
         assert_eq!(task.status_id(), "sid");
-        assert_eq!(task.project_id(), "pid");
+        assert_eq!(task.workspace_id(), "pid");
         assert_eq!(task.created_at(), ts);
         assert_eq!(task.updated_at(), ts);
     }

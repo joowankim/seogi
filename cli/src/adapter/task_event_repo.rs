@@ -66,16 +66,16 @@ pub fn list_completed_in_range(
 mod tests {
     use super::*;
     use crate::adapter::db::initialize_in_memory;
-    use crate::adapter::{project_repo, status_repo, task_repo};
-    use crate::domain::project::{Project, ProjectPrefix};
+    use crate::adapter::{status_repo, task_repo, workspace_repo};
     use crate::domain::status::StatusCategory;
     use crate::domain::task::{Label, Task};
     use crate::domain::value::Timestamp;
+    use crate::domain::workspace::{Workspace, WorkspacePrefix};
 
     fn setup_task(conn: &Connection) -> (String, String) {
-        let prefix = ProjectPrefix::new("SEO").unwrap();
-        let project = Project::new("Seogi", &prefix, "goal", chrono::Utc::now()).unwrap();
-        project_repo::save(conn, &project).unwrap();
+        let prefix = WorkspacePrefix::new("SEO").unwrap();
+        let workspace = Workspace::new("Seogi", &prefix, "goal", chrono::Utc::now()).unwrap();
+        workspace_repo::save(conn, &workspace).unwrap();
 
         let statuses = status_repo::list_all(conn).unwrap();
         let backlog = statuses
@@ -90,12 +90,12 @@ mod tests {
             "desc",
             Label::Feature,
             backlog.id(),
-            project.id(),
+            workspace.id(),
             chrono::Utc::now(),
         )
         .unwrap();
         task_repo::save(conn, &task).unwrap();
-        (task.id().to_string(), project.id().to_string())
+        (task.id().to_string(), workspace.id().to_string())
     }
 
     // Q17: save 후 DB에서 조회 시 필드 일치
