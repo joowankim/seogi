@@ -426,6 +426,10 @@ MCP 도구:
 - Claude Code 훅의 stdin JSON에는 `project`/`project_path` 필드가 있으며 이는 Claude Code 스펙이므로 변경 불가. 훅 파싱 시 내부적으로 workspace로 매핑
 - tool_uses/tool_failures/system_events 테이블의 `project`/`project_path` 컬럼도 `workspace`/`workspace_path`로 변경
 
+### 7단계: 사이클 (Cycle)
+
+> 별도 문서: [cycle.md](./2026-04-23-cycle.md)
+
 ---
 
 ## 논의 결과
