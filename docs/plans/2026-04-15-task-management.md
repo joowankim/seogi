@@ -411,6 +411,21 @@ MCP 도구:
 - [Picrew/awesome-agent-harness](https://github.com/Picrew/awesome-agent-harness) — 에이전트 하니스 도구 목록
 - [AutoJunjie/awesome-agent-harness](https://github.com/AutoJunjie/awesome-agent-harness) — 태스크 라이프사이클, 비용 추적, 하니스 버전 관리 도구 목록
 
+### 6단계: 도메인 용어 리네이밍 (project → workspace)
+
+> "project"는 명확한 목표와 기간이 있는 작업을 의미하지만, 실제로는 태스크를 묶는 작업 공간(workspace)으로 사용하고 있어 용어를 교체한다.
+
+| Feature | 내용 | 의존성 |
+|---------|------|--------|
+| 29 (SEO-15) | DB 마이그레이션 + 훅 입력 매핑 — 테이블/컬럼 리네이밍 migration SQL, 훅 파싱 시 `project`→`workspace` 매핑, adapter SQL 수정 | 없음 |
+| 30 (SEO-16) | 코드 리네이밍 (domain/adapter/workflow) — `Project`→`Workspace`, `ProjectPrefix`→`WorkspacePrefix`, 파일명 변경 | 29 |
+| 31 (SEO-17) | 외부 인터페이스 리네이밍 (CLI/MCP) — `seogi project`→`seogi workspace`, `--project`→`--workspace`, MCP 도구명 변경 | 30 |
+| 32 (SEO-18) | 문서 업데이트 — glossary, 계획 문서, README, CLAUDE.md | 31 |
+
+**결정 사항:**
+- Claude Code 훅의 stdin JSON에는 `project`/`project_path` 필드가 있으며 이는 Claude Code 스펙이므로 변경 불가. 훅 파싱 시 내부적으로 workspace로 매핑
+- tool_uses/tool_failures/system_events 테이블의 `project`/`project_path` 컬럼도 `workspace`/`workspace_path`로 변경
+
 ---
 
 ## 논의 결과
@@ -430,3 +445,4 @@ MCP 도구:
 - 리포트: `seogi report`를 세션 중심에서 태스크 중심으로 완전 교체.
 - 코멘트 기능: PR description으로 충분. 별도 목적이 생기면 재검토.
 - 하니스별 메트릭: 하니스 관리 도구 선정/개발 후 연동 예정. seogi 내부에서는 만들지 않음.
+- 도메인 용어: project → workspace로 교체. "project"는 목표/기간이 명확한 작업을 의미하지만, 실제로는 태스크를 묶는 작업 공간으로 사용하고 있음. Claude Code 훅의 `project`/`project_path` 필드는 외부 스펙이므로 수신 시 매핑.
