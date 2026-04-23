@@ -231,12 +231,12 @@ mod tests {
 
         // 더미 task 삽입으로 참조 생성
         conn.execute(
-            "INSERT INTO projects (id, name, prefix, goal, next_seq, created_at, updated_at) VALUES ('p1', 'Test', 'TST', 'goal', 1, '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00')",
+            "INSERT INTO workspaces (id, name, prefix, goal, next_seq, created_at, updated_at) VALUES ('p1', 'Test', 'TST', 'goal', 1, '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00')",
             [],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO tasks (id, title, description, label, status_id, project_id, created_at, updated_at) VALUES ('t1', 'task', 'desc', 'feature', '00000000000000000000000000000001', 'p1', '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00')",
+            "INSERT INTO tasks (id, title, description, label, status_id, workspace_id, created_at, updated_at) VALUES ('t1', 'task', 'desc', 'feature', '00000000000000000000000000000001', 'p1', '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00')",
             [],
         )
         .unwrap();

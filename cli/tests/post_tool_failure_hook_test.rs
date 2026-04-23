@@ -59,15 +59,15 @@ fn test_post_tool_failure_hook_saves_to_db() {
         .unwrap();
     assert_eq!(count, 1);
 
-    let (session_id, project, tool_name, error): (String, String, String, String) = conn
+    let (session_id, workspace, tool_name, error): (String, String, String, String) = conn
         .query_row(
-            "SELECT session_id, project, tool_name, error FROM tool_failures LIMIT 1",
+            "SELECT session_id, workspace, tool_name, error FROM tool_failures LIMIT 1",
             [],
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
         )
         .unwrap();
     assert_eq!(session_id, "sess-fail-123");
-    assert_eq!(project, "seogi");
+    assert_eq!(workspace, "seogi");
     assert_eq!(tool_name, "Bash");
     assert_eq!(error, "Permission denied");
 }

@@ -11,7 +11,7 @@ use crate::domain::log::{SystemEvent, ToolFailure, ToolUse};
 /// DB 쓰기 실패 시 `AdapterError::Database`.
 pub fn save_tool_use(conn: &Connection, tool_use: &ToolUse) -> Result<(), AdapterError> {
     conn.execute(
-        "INSERT OR IGNORE INTO tool_uses (id, session_id, project, project_path, tool_name, tool_input, duration_ms, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT OR IGNORE INTO tool_uses (id, session_id, workspace, workspace_path, tool_name, tool_input, duration_ms, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         (
             tool_use.id(),
             tool_use.session_id().as_str(),
@@ -33,7 +33,7 @@ pub fn save_tool_use(conn: &Connection, tool_use: &ToolUse) -> Result<(), Adapte
 /// DB 읽기 실패 시 `AdapterError::Database`.
 pub fn list_by_session(conn: &Connection, session_id: &str) -> Result<Vec<ToolUse>, AdapterError> {
     let mut stmt = conn.prepare(
-        "SELECT id, session_id, project, project_path, tool_name, tool_input, duration_ms, timestamp FROM tool_uses WHERE session_id = ?1 ORDER BY timestamp",
+        "SELECT id, session_id, workspace, workspace_path, tool_name, tool_input, duration_ms, timestamp FROM tool_uses WHERE session_id = ?1 ORDER BY timestamp",
     )?;
 
     let rows = stmt
@@ -53,7 +53,7 @@ pub fn save_tool_failure(
     tool_failure: &ToolFailure,
 ) -> Result<(), AdapterError> {
     conn.execute(
-        "INSERT OR IGNORE INTO tool_failures (id, session_id, project, project_path, tool_name, error, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT OR IGNORE INTO tool_failures (id, session_id, workspace, workspace_path, tool_name, error, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         (
             tool_failure.id(),
             tool_failure.session_id().as_str(),
@@ -77,7 +77,7 @@ pub fn list_failures_by_session(
     session_id: &str,
 ) -> Result<Vec<ToolFailure>, AdapterError> {
     let mut stmt = conn.prepare(
-        "SELECT id, session_id, project, project_path, tool_name, error, timestamp FROM tool_failures WHERE session_id = ?1 ORDER BY timestamp",
+        "SELECT id, session_id, workspace, workspace_path, tool_name, error, timestamp FROM tool_failures WHERE session_id = ?1 ORDER BY timestamp",
     )?;
 
     let rows = stmt
@@ -94,7 +94,7 @@ pub fn list_failures_by_session(
 /// DB 쓰기 실패 시 `AdapterError::Database`.
 pub fn save_system_event(conn: &Connection, event: &SystemEvent) -> Result<(), AdapterError> {
     conn.execute(
-        "INSERT OR IGNORE INTO system_events (id, session_id, project, project_path, event_type, content, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT OR IGNORE INTO system_events (id, session_id, workspace, workspace_path, event_type, content, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         (
             event.id(),
             event.session_id().as_str(),
@@ -118,7 +118,7 @@ pub fn list_system_events_by_session(
     session_id: &str,
 ) -> Result<Vec<SystemEvent>, AdapterError> {
     let mut stmt = conn.prepare(
-        "SELECT id, session_id, project, project_path, event_type, content, timestamp FROM system_events WHERE session_id = ?1 ORDER BY timestamp",
+        "SELECT id, session_id, workspace, workspace_path, event_type, content, timestamp FROM system_events WHERE session_id = ?1 ORDER BY timestamp",
     )?;
 
     let rows = stmt
@@ -139,7 +139,7 @@ pub fn list_by_time_range(
     to_ts: i64,
 ) -> Result<Vec<ToolUse>, AdapterError> {
     let mut stmt = conn.prepare(
-        "SELECT id, session_id, project, project_path, tool_name, tool_input, duration_ms, timestamp FROM tool_uses WHERE timestamp >= ?1 AND timestamp <= ?2 ORDER BY timestamp",
+        "SELECT id, session_id, workspace, workspace_path, tool_name, tool_input, duration_ms, timestamp FROM tool_uses WHERE timestamp >= ?1 AND timestamp <= ?2 ORDER BY timestamp",
     )?;
 
     let rows = stmt
@@ -160,7 +160,7 @@ pub fn list_failures_by_time_range(
     to_ts: i64,
 ) -> Result<Vec<ToolFailure>, AdapterError> {
     let mut stmt = conn.prepare(
-        "SELECT id, session_id, project, project_path, tool_name, error, timestamp FROM tool_failures WHERE timestamp >= ?1 AND timestamp <= ?2 ORDER BY timestamp",
+        "SELECT id, session_id, workspace, workspace_path, tool_name, error, timestamp FROM tool_failures WHERE timestamp >= ?1 AND timestamp <= ?2 ORDER BY timestamp",
     )?;
 
     let rows = stmt
@@ -196,11 +196,11 @@ mod tests {
 
         save_tool_use(&conn, &tu).unwrap();
 
-        let (id, session_id, project, project_path, tool_name, tool_input, duration_ms, timestamp): (
+        let (id, session_id, workspace, workspace_path, tool_name, tool_input, duration_ms, timestamp): (
             String, String, String, String, String, String, i64, i64,
         ) = conn
             .query_row(
-                "SELECT id, session_id, project, project_path, tool_name, tool_input, duration_ms, timestamp FROM tool_uses LIMIT 1",
+                "SELECT id, session_id, workspace, workspace_path, tool_name, tool_input, duration_ms, timestamp FROM tool_uses LIMIT 1",
                 [],
                 |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get(7)?)),
             )
@@ -208,8 +208,8 @@ mod tests {
 
         assert_eq!(id, "abcdef1234567890abcdef1234567890");
         assert_eq!(session_id, "sess-1");
-        assert_eq!(project, "seogi");
-        assert_eq!(project_path, "/Users/kim/projects/seogi");
+        assert_eq!(workspace, "seogi");
+        assert_eq!(workspace_path, "/Users/kim/projects/seogi");
         assert_eq!(tool_name, "Bash");
         assert_eq!(tool_input, r#"{"command":"ls -la"}"#);
         assert_eq!(duration_ms, 0);
@@ -255,11 +255,11 @@ mod tests {
 
         save_tool_failure(&conn, &tf).unwrap();
 
-        let (id, session_id, project, project_path, tool_name, error, timestamp): (
+        let (id, session_id, workspace, workspace_path, tool_name, error, timestamp): (
             String, String, String, String, String, String, i64,
         ) = conn
             .query_row(
-                "SELECT id, session_id, project, project_path, tool_name, error, timestamp FROM tool_failures LIMIT 1",
+                "SELECT id, session_id, workspace, workspace_path, tool_name, error, timestamp FROM tool_failures LIMIT 1",
                 [],
                 |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?)),
             )
@@ -267,8 +267,8 @@ mod tests {
 
         assert_eq!(id, "abcdef1234567890abcdef1234567890");
         assert_eq!(session_id, "sess-1");
-        assert_eq!(project, "seogi");
-        assert_eq!(project_path, "/Users/kim/projects/seogi");
+        assert_eq!(workspace, "seogi");
+        assert_eq!(workspace_path, "/Users/kim/projects/seogi");
         assert_eq!(tool_name, "Bash");
         assert_eq!(error, "Permission denied");
         assert_eq!(timestamp, 1_713_000_000_000);
@@ -313,11 +313,11 @@ mod tests {
 
         save_system_event(&conn, &se).unwrap();
 
-        let (id, session_id, project, project_path, event_type, content, timestamp): (
+        let (id, session_id, workspace, workspace_path, event_type, content, timestamp): (
             String, String, String, String, String, String, i64,
         ) = conn
             .query_row(
-                "SELECT id, session_id, project, project_path, event_type, content, timestamp FROM system_events LIMIT 1",
+                "SELECT id, session_id, workspace, workspace_path, event_type, content, timestamp FROM system_events LIMIT 1",
                 [],
                 |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?)),
             )
@@ -325,8 +325,8 @@ mod tests {
 
         assert_eq!(id, "abcdef1234567890abcdef1234567890");
         assert_eq!(session_id, "sess-1");
-        assert_eq!(project, "seogi");
-        assert_eq!(project_path, "/Users/kim/projects/seogi");
+        assert_eq!(workspace, "seogi");
+        assert_eq!(workspace_path, "/Users/kim/projects/seogi");
         assert_eq!(event_type, "Notification");
         assert_eq!(content, "Permission required");
         assert_eq!(timestamp, 1_713_000_000_000);

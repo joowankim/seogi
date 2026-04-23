@@ -11,8 +11,9 @@ const MIGRATION_V2_TO_V3: &str = include_str!("sql/migration_v2_to_v3.sql");
 const MIGRATION_V3_TO_V4: &str = include_str!("sql/migration_v3_to_v4.sql");
 const MIGRATION_V4_TO_V5: &str = include_str!("sql/migration_v4_to_v5.sql");
 const MIGRATION_V5_TO_V6: &str = include_str!("sql/migration_v5_to_v6.sql");
+const MIGRATION_V6_TO_V7: &str = include_str!("sql/migration_v6_to_v7.sql");
 
-const SCHEMA_VERSION: i64 = 6;
+const SCHEMA_VERSION: i64 = 7;
 
 fn apply_schema(conn: &Connection) -> Result<(), AdapterError> {
     conn.execute_batch(SCHEMA_SQL)?;
@@ -42,6 +43,9 @@ fn setup_connection(conn: Connection) -> Result<Connection, AdapterError> {
         }
         if version < 6 {
             conn.execute_batch(MIGRATION_V5_TO_V6)?;
+        }
+        if version == 6 {
+            conn.execute_batch(MIGRATION_V6_TO_V7)?;
         }
         apply_schema(&conn)?;
         conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
@@ -85,7 +89,7 @@ mod tests {
 
     fn insert_test_tool_use(conn: &Connection) {
         conn.execute(
-            "INSERT INTO tool_uses (id, session_id, project, project_path, tool_name, tool_input, duration_ms, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            "INSERT INTO tool_uses (id, session_id, workspace, workspace_path, tool_name, tool_input, duration_ms, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             ("t1", "s1", "proj", "/path", "Bash", "{}", 100, 1000),
         )
         .unwrap();
@@ -93,7 +97,6 @@ mod tests {
 
     const EXPECTED_TABLES: [&str; 9] = [
         "changelog",
-        "projects",
         "statuses",
         "system_events",
         "task_dependencies",
@@ -101,6 +104,7 @@ mod tests {
         "tasks",
         "tool_failures",
         "tool_uses",
+        "workspaces",
     ];
 
     #[test]
@@ -146,11 +150,11 @@ mod tests {
     }
 
     #[test]
-    fn test_schema_columns_projects() {
+    fn test_schema_columns_workspaces() {
         let conn = initialize_in_memory().unwrap();
         assert_table_columns(
             &conn,
-            "projects",
+            "workspaces",
             &[
                 ("id", "TEXT", false),
                 ("name", "TEXT", true),
@@ -190,7 +194,7 @@ mod tests {
                 ("description", "TEXT", true),
                 ("label", "TEXT", true),
                 ("status_id", "TEXT", true),
-                ("project_id", "TEXT", true),
+                ("workspace_id", "TEXT", true),
                 ("created_at", "TEXT", true),
                 ("updated_at", "TEXT", true),
             ],
@@ -223,8 +227,8 @@ mod tests {
             &[
                 ("id", "TEXT", false),
                 ("session_id", "TEXT", true),
-                ("project", "TEXT", true),
-                ("project_path", "TEXT", true),
+                ("workspace", "TEXT", true),
+                ("workspace_path", "TEXT", true),
                 ("tool_name", "TEXT", true),
                 ("tool_input", "TEXT", true),
                 ("duration_ms", "INTEGER", true),
@@ -242,8 +246,8 @@ mod tests {
             &[
                 ("id", "TEXT", false),
                 ("session_id", "TEXT", true),
-                ("project", "TEXT", true),
-                ("project_path", "TEXT", true),
+                ("workspace", "TEXT", true),
+                ("workspace_path", "TEXT", true),
                 ("tool_name", "TEXT", true),
                 ("error", "TEXT", true),
                 ("timestamp", "INTEGER", true),
@@ -260,8 +264,8 @@ mod tests {
             &[
                 ("id", "TEXT", false),
                 ("session_id", "TEXT", true),
-                ("project", "TEXT", true),
-                ("project_path", "TEXT", true),
+                ("workspace", "TEXT", true),
+                ("workspace_path", "TEXT", true),
                 ("event_type", "TEXT", true),
                 ("content", "TEXT", true),
                 ("timestamp", "INTEGER", true),
@@ -459,10 +463,13 @@ mod tests {
              CREATE TABLE tool_uses (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, project TEXT NOT NULL, project_path TEXT NOT NULL, tool_name TEXT NOT NULL, tool_input TEXT NOT NULL, duration_ms INTEGER NOT NULL, timestamp INTEGER NOT NULL);",
         )
         .unwrap();
-        insert_test_tool_use(&conn);
+        conn.execute(
+            "INSERT INTO tool_uses (id, session_id, project, project_path, tool_name, tool_input, duration_ms, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            ("t1", "s1", "proj", "/path", "Bash", "{}", 100, 1000),
+        ).unwrap();
         conn.pragma_update(None, "user_version", 2).unwrap();
 
-        // v3로 업그레이드
+        // v7로 업그레이드
         let conn = setup_connection(conn).unwrap();
 
         let count: i64 = conn
@@ -482,16 +489,19 @@ mod tests {
              CREATE TABLE tool_uses (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, project TEXT NOT NULL, project_path TEXT NOT NULL, tool_name TEXT NOT NULL, tool_input TEXT NOT NULL, duration_ms INTEGER NOT NULL, timestamp INTEGER NOT NULL);",
         )
         .unwrap();
-        insert_test_tool_use(&conn);
+        conn.execute(
+            "INSERT INTO tool_uses (id, session_id, project, project_path, tool_name, tool_input, duration_ms, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            ("t1", "s1", "proj", "/path", "Bash", "{}", 100, 1000),
+        ).unwrap();
         conn.pragma_update(None, "user_version", 3).unwrap();
 
-        // v4로 업그레이드
+        // v7로 업그레이드 (v3→v4→v5→v6→v7)
         let conn = setup_connection(conn).unwrap();
 
-        // projects.created_at이 TEXT로 변경됨
+        // projects → workspaces, created_at이 TEXT로 변경됨
         assert_table_columns(
             &conn,
-            "projects",
+            "workspaces",
             &[
                 ("id", "TEXT", false),
                 ("name", "TEXT", true),
@@ -508,5 +518,119 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM tool_uses", [], |r| r.get(0))
             .unwrap();
         assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_migration_v6_to_v7_renames_project_to_workspace() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+
+        // v6 스키마 시뮬레이션
+        conn.execute_batch(
+            "CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, prefix TEXT NOT NULL UNIQUE, goal TEXT NOT NULL, next_seq INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+             CREATE TABLE statuses (id TEXT PRIMARY KEY, name TEXT NOT NULL, category TEXT NOT NULL, position INTEGER NOT NULL);
+             CREATE TABLE tasks (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL, label TEXT NOT NULL, status_id TEXT NOT NULL, project_id TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+             CREATE TABLE tool_uses (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, project TEXT NOT NULL, project_path TEXT NOT NULL, tool_name TEXT NOT NULL, tool_input TEXT NOT NULL, duration_ms INTEGER NOT NULL, timestamp INTEGER NOT NULL);
+             CREATE TABLE tool_failures (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, project TEXT NOT NULL, project_path TEXT NOT NULL, tool_name TEXT NOT NULL, error TEXT NOT NULL, timestamp INTEGER NOT NULL);
+             CREATE TABLE system_events (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, project TEXT NOT NULL, project_path TEXT NOT NULL, event_type TEXT NOT NULL, content TEXT NOT NULL, timestamp INTEGER NOT NULL);
+             CREATE TABLE task_dependencies (task_id TEXT NOT NULL, depends_on_task_id TEXT NOT NULL, PRIMARY KEY (task_id, depends_on_task_id));",
+        )
+        .unwrap();
+
+        // v6 데이터 삽입
+        conn.execute(
+            "INSERT INTO projects (id, name, prefix, goal, next_seq, created_at, updated_at) VALUES ('p1', 'Seogi', 'SEO', 'goal', 1, '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO tool_uses (id, session_id, project, project_path, tool_name, tool_input, duration_ms, timestamp) VALUES ('t1', 's1', 'seogi', '/path/seogi', 'Bash', '{}', 100, 1000)",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO tool_failures (id, session_id, project, project_path, tool_name, error, timestamp) VALUES ('f1', 's1', 'seogi', '/path/seogi', 'Bash', 'err', 2000)",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO system_events (id, session_id, project, project_path, event_type, content, timestamp) VALUES ('e1', 's1', 'seogi', '/path/seogi', 'Stop', 'done', 3000)",
+            [],
+        ).unwrap();
+
+        conn.pragma_update(None, "user_version", 6).unwrap();
+
+        // v7로 업그레이드
+        let conn = setup_connection(conn).unwrap();
+
+        // workspaces 테이블 존재, projects 없음
+        let tables: Vec<String> = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('projects', 'workspaces') ORDER BY name")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(tables, vec!["workspaces"]);
+
+        // workspaces 데이터 보존
+        let name: String = conn
+            .query_row("SELECT name FROM workspaces WHERE id = 'p1'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(name, "Seogi");
+
+        // tasks.workspace_id 보존
+        assert_table_columns(
+            &conn,
+            "tasks",
+            &[
+                ("id", "TEXT", false),
+                ("title", "TEXT", true),
+                ("description", "TEXT", true),
+                ("label", "TEXT", true),
+                ("status_id", "TEXT", true),
+                ("workspace_id", "TEXT", true),
+                ("created_at", "TEXT", true),
+                ("updated_at", "TEXT", true),
+            ],
+        );
+
+        // tool_uses workspace/workspace_path 보존
+        let (ws, ws_path): (String, String) = conn
+            .query_row(
+                "SELECT workspace, workspace_path FROM tool_uses WHERE id = 't1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(ws, "seogi");
+        assert_eq!(ws_path, "/path/seogi");
+
+        // tool_failures workspace/workspace_path 보존
+        let (ws, ws_path): (String, String) = conn
+            .query_row(
+                "SELECT workspace, workspace_path FROM tool_failures WHERE id = 'f1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(ws, "seogi");
+        assert_eq!(ws_path, "/path/seogi");
+
+        // system_events workspace/workspace_path 보존
+        let (ws, ws_path): (String, String) = conn
+            .query_row(
+                "SELECT workspace, workspace_path FROM system_events WHERE id = 'e1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(ws, "seogi");
+        assert_eq!(ws_path, "/path/seogi");
+
+        // schema version = 7
+        let version: i64 = conn
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
     }
 }

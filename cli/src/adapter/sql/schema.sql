@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS projects (
+CREATE TABLE IF NOT EXISTS workspaces (
     id          TEXT PRIMARY KEY,
     name        TEXT NOT NULL,
     prefix      TEXT NOT NULL UNIQUE,
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     description TEXT NOT NULL,
     label       TEXT NOT NULL,
     status_id   TEXT NOT NULL REFERENCES statuses(id),
-    project_id  TEXT NOT NULL REFERENCES projects(id),
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id),
     created_at  TEXT NOT NULL,
     updated_at  TEXT NOT NULL
 );
@@ -38,8 +38,8 @@ CREATE TABLE IF NOT EXISTS task_events (
 CREATE TABLE IF NOT EXISTS tool_uses (
     id              TEXT PRIMARY KEY,
     session_id      TEXT NOT NULL,
-    project         TEXT NOT NULL,
-    project_path    TEXT NOT NULL,
+    workspace       TEXT NOT NULL,
+    workspace_path  TEXT NOT NULL,
     tool_name       TEXT NOT NULL,
     tool_input      TEXT NOT NULL,
     duration_ms     INTEGER NOT NULL,
@@ -49,8 +49,8 @@ CREATE TABLE IF NOT EXISTS tool_uses (
 CREATE TABLE IF NOT EXISTS tool_failures (
     id              TEXT PRIMARY KEY,
     session_id      TEXT NOT NULL,
-    project         TEXT NOT NULL,
-    project_path    TEXT NOT NULL,
+    workspace       TEXT NOT NULL,
+    workspace_path  TEXT NOT NULL,
     tool_name       TEXT NOT NULL,
     error           TEXT NOT NULL,
     timestamp       INTEGER NOT NULL
@@ -59,8 +59,8 @@ CREATE TABLE IF NOT EXISTS tool_failures (
 CREATE TABLE IF NOT EXISTS system_events (
     id              TEXT PRIMARY KEY,
     session_id      TEXT NOT NULL,
-    project         TEXT NOT NULL,
-    project_path    TEXT NOT NULL,
+    workspace       TEXT NOT NULL,
+    workspace_path  TEXT NOT NULL,
     event_type      TEXT NOT NULL,
     content         TEXT NOT NULL,
     timestamp       INTEGER NOT NULL
