@@ -41,7 +41,7 @@ Rust 기반 seogi 프로젝트의 코딩 컨벤션. Railway Oriented Programming
 | 접두사 | 반환 | 예시 |
 |---|---|---|
 | `find_` | `Option<Entity>` | `find_by_id`, `find_by_session` |
-| `list_` | `Vec<Entity>` | `list_by_project`, `list_active` |
+| `list_` | `Vec<Entity>` | `list_by_workspace`, `list_active` |
 | `save` | `Result<()>` | `save_tool_use` |
 | `delete` | `Result<()>` | `delete_by_id` |
 
@@ -290,8 +290,8 @@ impl From<rusqlite::Error> for DomainError {
 
 ```rust
 fn run(conn: &mut Connection, cmd: CreateTask) -> Result<Task, Error> {
-    let project = project_repo::find(conn, &cmd.project_id)?;
-    let task_id = TaskId::new(&project.prefix, project.next_seq())?;
+    let workspace = workspace_repo::find(conn, &cmd.workspace_id)?;
+    let task_id = TaskId::new(&workspace.prefix, workspace.next_seq())?;
     let task = Task::new_backlog(task_id, cmd.title)?;
     task_repo::save(conn, &task)?;
     Ok(task)
@@ -339,7 +339,7 @@ pub struct Task {
     title: String,
     description: String,
     status: StatusId,
-    project_id: ProjectId,
+    workspace_id: WorkspaceId,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
 }
@@ -395,7 +395,7 @@ workflow 함수의 입력 타입:
 // domain/command.rs
 #[derive(Debug)]
 pub struct CreateTask {
-    pub project_id: ProjectId,
+    pub workspace_id: WorkspaceId,
     pub title: String,
     pub description: String,
     pub label: Label,
@@ -404,7 +404,7 @@ pub struct CreateTask {
 // domain/query.rs
 #[derive(Debug)]
 pub struct ListTasks {
-    pub project_id: Option<ProjectId>,
+    pub workspace_id: Option<WorkspaceId>,
     pub status: Option<StatusId>,
 }
 ```
@@ -574,7 +574,7 @@ if status == Status::InProgress { ... }
 
 ```rust
 // BAD
-pub fn create_task(p: ProjectId, t: String, d: String, l: Label, s: StatusId) { ... }
+pub fn create_task(p: WorkspaceId, t: String, d: String, l: Label, s: StatusId) { ... }
 
 // GOOD
 pub fn create_task(cmd: CreateTask) { ... }

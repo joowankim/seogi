@@ -7,7 +7,7 @@
 ## 값객체
 
 - **Ms:** 밀리초 단위 시간 간격. 도구 호출 소요 시간(`duration`) 등에 사용. `Timestamp`(시각)와 구분하여 시각과 간격의 혼동을 방지.
-- **ProjectPrefix:** 프로젝트의 대문자 알파벳 3글자 식별자 newtype. 태스크 ID의 접두사로 사용 (e.g., `"SEO"` → `SEO-1`). 정확히 3글자 대문자 알파벳만 허용하며, 프로젝트 간 중복 불가.
+- **WorkspacePrefix:** 워크스페이스의 대문자 알파벳 3글자 식별자 newtype. 태스크 ID의 접두사로 사용 (e.g., `"SEO"` → `SEO-1`). 정확히 3글자 대문자 알파벳만 허용하며, 워크스페이스 간 중복 불가.
 - **SessionId:** Claude Code 세션의 고유 식별자. project, id 등 다른 문자열 필드와 구분.
 - **Timestamp:** 밀리초 Unix timestamp. 이벤트/로그의 발생 시각(`timestamp` 컬럼)에만 사용. 엔티티의 `created_at`/`updated_at`은 ISO 8601 TEXT로 표현하며 `Timestamp` 타입을 사용하지 않는다.
 
@@ -15,11 +15,11 @@
 
 - **Label:** 태스크의 분류 라벨. 5개 고정 값(feature, bug, refactor, chore, docs)을 코드 enum으로 관리.
 - **MigratedRecord:** JSONL 마이그레이션 시 `LogEntry`를 `ToolUse` 또는 `ToolFailure`로 변환한 결과.
-- **Project:** 태스크를 묶는 관리 단위. name, `Prefix`, goal, next_seq을 포함하며 `projects` 테이블에 대응. next_seq은 태스크 시퀀스 채번에 사용되며 도메인에서 초기값 1로 설정.
+- **Workspace:** 태스크를 묶는 작업 공간. name, `Prefix`, goal, next_seq을 포함하며 `workspaces` 테이블에 대응. next_seq은 태스크 시퀀스 채번에 사용되며 도메인에서 초기값 1로 설정.
 - **MigrateSummary:** 마이그레이션 결과 요약. tool_uses, tool_failures, skipped, files 카운터.
 - **Status:** 태스크의 상태를 나타내는 엔티티. name, category(`StatusCategory`), position을 포함하며 `statuses` 테이블에 대응. 기본 7개가 스키마 적용 시 시딩되고, 사용자 커스텀 상태 추가/수정/삭제 가능.
 - **SystemEvent:** Notification 또는 Stop 훅에서 수집된 시스템 이벤트 기록. `event_type`으로 구분.
-- **Task:** 단위 작업. id는 `{ProjectPrefix}-{seq}` 형식(예: SEO-1). title, description, `Label`, `Status`, `Project`를 포함하며 `tasks` 테이블에 대응. 생성 시 초기 상태는 backlog.
+- **Task:** 단위 작업. id는 `{WorkspacePrefix}-{seq}` 형식(예: SEO-1). title, description, `Label`, `Status`, `Workspace`를 포함하며 `tasks` 테이블에 대응. 생성 시 초기 상태는 backlog.
 - **TaskEvent:** 태스크 상태 변경 이벤트. from_status(nullable), to_status, session_id, timestamp를 포함하며 `task_events` 테이블에 대응. 최초 생성 시 from_status는 NULL.
 - **ToolFailure:** 도구 호출 실패 기록. `PostToolUseFailure` 훅에서 수집. `tool_failures` 테이블에 대응.
 - **ToolUse:** 도구 호출 성공 기록. `PostToolUse` 훅에서 수집. `tool_uses` 테이블에 대응.
