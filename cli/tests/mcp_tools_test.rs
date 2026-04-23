@@ -183,12 +183,12 @@ fn tools_list_schema_has_correct_required_fields() {
         let required_strs: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
 
         match name {
-            "project_create" => {
+            "workspace_create" => {
                 assert!(required_strs.contains(&"name"));
                 assert!(required_strs.contains(&"goal"));
                 assert!(!required_strs.contains(&"prefix"));
             }
-            "project_list" | "status_list" | "task_list" => {
+            "workspace_list" | "status_list" | "task_list" => {
                 assert!(required.is_empty());
             }
             "status_create" => {
@@ -203,7 +203,7 @@ fn tools_list_schema_has_correct_required_fields() {
                 assert!(required_strs.contains(&"id"));
             }
             "task_create" => {
-                assert!(required_strs.contains(&"project"));
+                assert!(required_strs.contains(&"workspace"));
                 assert!(required_strs.contains(&"title"));
                 assert!(required_strs.contains(&"description"));
                 assert!(required_strs.contains(&"label"));
@@ -232,16 +232,16 @@ fn tools_list_schema_has_correct_required_fields() {
     session.shutdown();
 }
 
-// ── QA 3: project_create 성공 ──
+// ── QA 3: workspace_create 성공 ──
 
 #[test]
-fn project_create_returns_created_project() {
+fn workspace_create_returns_created_workspace() {
     let dir = tempfile::tempdir().unwrap();
     let db_path = dir.path().join("seogi.db");
     let mut session = McpSession::new(&db_path);
 
     let response = session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Seogi", "prefix": "SEO", "goal": "harness measurement"}),
     );
 
@@ -255,16 +255,16 @@ fn project_create_returns_created_project() {
     session.shutdown();
 }
 
-// ── QA 4: project_create prefix 자동 생성 ──
+// ── QA 4: workspace_create prefix 자동 생성 ──
 
 #[test]
-fn project_create_auto_generates_prefix() {
+fn workspace_create_auto_generates_prefix() {
     let dir = tempfile::tempdir().unwrap();
     let db_path = dir.path().join("seogi.db");
     let mut session = McpSession::new(&db_path);
 
     let response = session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Seogi", "goal": "harness measurement"}),
     );
 
@@ -276,21 +276,21 @@ fn project_create_auto_generates_prefix() {
     session.shutdown();
 }
 
-// ── QA 5: project_create 중복 prefix ──
+// ── QA 5: workspace_create 중복 prefix ──
 
 #[test]
-fn project_create_duplicate_prefix_returns_error() {
+fn workspace_create_duplicate_prefix_returns_error() {
     let dir = tempfile::tempdir().unwrap();
     let db_path = dir.path().join("seogi.db");
     let mut session = McpSession::new(&db_path);
 
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Seogi", "prefix": "SEO", "goal": "first"}),
     );
 
     let response = session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Other", "prefix": "SEO", "goal": "second"}),
     );
 
@@ -301,24 +301,24 @@ fn project_create_duplicate_prefix_returns_error() {
     session.shutdown();
 }
 
-// ── QA 6: project_list ──
+// ── QA 6: workspace_list ──
 
 #[test]
-fn project_list_returns_all_projects() {
+fn workspace_list_returns_all_workspaces() {
     let dir = tempfile::tempdir().unwrap();
     let db_path = dir.path().join("seogi.db");
     let mut session = McpSession::new(&db_path);
 
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Alpha", "prefix": "ALP", "goal": "goal1"}),
     );
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Beta", "prefix": "BET", "goal": "goal2"}),
     );
 
-    let response = session.call("project_list", serde_json::json!({}));
+    let response = session.call("workspace_list", serde_json::json!({}));
 
     assert!(!is_error(&response));
     let text = extract_text(&response);
@@ -469,13 +469,13 @@ fn status_delete_referenced_by_task_returns_error() {
 
     // 프로젝트 + 태스크 생성 (태스크는 backlog 상태를 참조)
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Test", "prefix": "TST", "goal": "test"}),
     );
     session.call(
         "task_create",
         serde_json::json!({
-            "project": "Test",
+            "workspace": "Test",
             "title": "task1",
             "description": "desc",
             "label": "feature"
@@ -509,14 +509,14 @@ fn task_create_returns_created_task() {
     let mut session = McpSession::new(&db_path);
 
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "goal"}),
     );
 
     let response = session.call(
         "task_create",
         serde_json::json!({
-            "project": "Proj",
+            "workspace": "Proj",
             "title": "My Task",
             "description": "A description",
             "label": "feature"
@@ -537,7 +537,7 @@ fn task_create_returns_created_task() {
 // ── QA 15: task_create 미존재 프로젝트 ──
 
 #[test]
-fn task_create_nonexistent_project_returns_error() {
+fn task_create_nonexistent_workspace_returns_error() {
     let dir = tempfile::tempdir().unwrap();
     let db_path = dir.path().join("seogi.db");
     let mut session = McpSession::new(&db_path);
@@ -545,7 +545,7 @@ fn task_create_nonexistent_project_returns_error() {
     let response = session.call(
         "task_create",
         serde_json::json!({
-            "project": "NonExistent",
+            "workspace": "NonExistent",
             "title": "task",
             "description": "desc",
             "label": "feature"
@@ -566,14 +566,14 @@ fn task_create_invalid_label_returns_error() {
     let mut session = McpSession::new(&db_path);
 
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "goal"}),
     );
 
     let response = session.call(
         "task_create",
         serde_json::json!({
-            "project": "Proj",
+            "workspace": "Proj",
             "title": "task",
             "description": "desc",
             "label": "invalid_label"
@@ -594,13 +594,13 @@ fn task_list_returns_all_tasks() {
     let mut session = McpSession::new(&db_path);
 
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "goal"}),
     );
     session.call(
         "task_create",
         serde_json::json!({
-            "project": "Proj",
+            "workspace": "Proj",
             "title": "task1",
             "description": "d1",
             "label": "feature"
@@ -609,7 +609,7 @@ fn task_list_returns_all_tasks() {
     session.call(
         "task_create",
         serde_json::json!({
-            "project": "Proj",
+            "workspace": "Proj",
             "title": "task2",
             "description": "d2",
             "label": "bug"
@@ -626,32 +626,32 @@ fn task_list_returns_all_tasks() {
     session.shutdown();
 }
 
-// ── QA 18: task_list project 필터 ──
+// ── QA 18: task_list workspace 필터 ──
 
 #[test]
-fn task_list_filters_by_project() {
+fn task_list_filters_by_workspace() {
     let dir = tempfile::tempdir().unwrap();
     let db_path = dir.path().join("seogi.db");
     let mut session = McpSession::new(&db_path);
 
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Alpha", "prefix": "ALP", "goal": "g1"}),
     );
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Beta", "prefix": "BET", "goal": "g2"}),
     );
     session.call(
         "task_create",
-        serde_json::json!({"project": "Alpha", "title": "t1", "description": "d", "label": "feature"}),
+        serde_json::json!({"workspace": "Alpha", "title": "t1", "description": "d", "label": "feature"}),
     );
     session.call(
         "task_create",
-        serde_json::json!({"project": "Beta", "title": "t2", "description": "d", "label": "bug"}),
+        serde_json::json!({"workspace": "Beta", "title": "t2", "description": "d", "label": "bug"}),
     );
 
-    let response = session.call("task_list", serde_json::json!({"project": "Alpha"}));
+    let response = session.call("task_list", serde_json::json!({"workspace": "Alpha"}));
 
     assert!(!is_error(&response));
     let text = extract_text(&response);
@@ -671,16 +671,16 @@ fn task_list_filters_by_status() {
     let mut session = McpSession::new(&db_path);
 
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "g"}),
     );
     session.call(
         "task_create",
-        serde_json::json!({"project": "Proj", "title": "t1", "description": "d", "label": "feature"}),
+        serde_json::json!({"workspace": "Proj", "title": "t1", "description": "d", "label": "feature"}),
     );
     session.call(
         "task_create",
-        serde_json::json!({"project": "Proj", "title": "t2", "description": "d", "label": "feature"}),
+        serde_json::json!({"workspace": "Proj", "title": "t2", "description": "d", "label": "feature"}),
     );
     // t1을 todo로 이동
     session.call(
@@ -708,16 +708,16 @@ fn task_list_filters_by_label() {
     let mut session = McpSession::new(&db_path);
 
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "g"}),
     );
     session.call(
         "task_create",
-        serde_json::json!({"project": "Proj", "title": "t1", "description": "d", "label": "feature"}),
+        serde_json::json!({"workspace": "Proj", "title": "t1", "description": "d", "label": "feature"}),
     );
     session.call(
         "task_create",
-        serde_json::json!({"project": "Proj", "title": "t2", "description": "d", "label": "bug"}),
+        serde_json::json!({"workspace": "Proj", "title": "t2", "description": "d", "label": "bug"}),
     );
 
     let response = session.call("task_list", serde_json::json!({"label": "bug"}));
@@ -740,13 +740,13 @@ fn task_get_returns_task_detail() {
     let mut session = McpSession::new(&db_path);
 
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "goal"}),
     );
     session.call(
         "task_create",
         serde_json::json!({
-            "project": "Proj",
+            "workspace": "Proj",
             "title": "My Task",
             "description": "Task description here",
             "label": "feature"
@@ -796,11 +796,11 @@ fn task_depend_success() {
     let mut session = McpSession::new(&db_path);
 
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "g"}),
     );
-    session.call("task_create", serde_json::json!({"project": "Proj", "title": "t1", "description": "d", "label": "feature"}));
-    session.call("task_create", serde_json::json!({"project": "Proj", "title": "t2", "description": "d", "label": "feature"}));
+    session.call("task_create", serde_json::json!({"workspace": "Proj", "title": "t1", "description": "d", "label": "feature"}));
+    session.call("task_create", serde_json::json!({"workspace": "Proj", "title": "t2", "description": "d", "label": "feature"}));
 
     let response = session.call(
         "task_depend",
@@ -824,11 +824,11 @@ fn task_depend_circular_returns_error() {
     let mut session = McpSession::new(&db_path);
 
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "g"}),
     );
-    session.call("task_create", serde_json::json!({"project": "Proj", "title": "t1", "description": "d", "label": "feature"}));
-    session.call("task_create", serde_json::json!({"project": "Proj", "title": "t2", "description": "d", "label": "feature"}));
+    session.call("task_create", serde_json::json!({"workspace": "Proj", "title": "t1", "description": "d", "label": "feature"}));
+    session.call("task_create", serde_json::json!({"workspace": "Proj", "title": "t2", "description": "d", "label": "feature"}));
 
     session.call(
         "task_depend",
@@ -853,11 +853,11 @@ fn task_undepend_success() {
     let mut session = McpSession::new(&db_path);
 
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "g"}),
     );
-    session.call("task_create", serde_json::json!({"project": "Proj", "title": "t1", "description": "d", "label": "feature"}));
-    session.call("task_create", serde_json::json!({"project": "Proj", "title": "t2", "description": "d", "label": "feature"}));
+    session.call("task_create", serde_json::json!({"workspace": "Proj", "title": "t1", "description": "d", "label": "feature"}));
+    session.call("task_create", serde_json::json!({"workspace": "Proj", "title": "t2", "description": "d", "label": "feature"}));
 
     session.call(
         "task_depend",
@@ -882,11 +882,11 @@ fn task_get_includes_depends_on() {
     let mut session = McpSession::new(&db_path);
 
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "g"}),
     );
-    session.call("task_create", serde_json::json!({"project": "Proj", "title": "t1", "description": "d", "label": "feature"}));
-    session.call("task_create", serde_json::json!({"project": "Proj", "title": "t2", "description": "d", "label": "feature"}));
+    session.call("task_create", serde_json::json!({"workspace": "Proj", "title": "t1", "description": "d", "label": "feature"}));
+    session.call("task_create", serde_json::json!({"workspace": "Proj", "title": "t2", "description": "d", "label": "feature"}));
 
     session.call(
         "task_depend",
@@ -913,13 +913,13 @@ fn task_create_with_depends_on() {
     let mut session = McpSession::new(&db_path);
 
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "g"}),
     );
-    session.call("task_create", serde_json::json!({"project": "Proj", "title": "t1", "description": "d", "label": "feature"}));
+    session.call("task_create", serde_json::json!({"workspace": "Proj", "title": "t1", "description": "d", "label": "feature"}));
 
     let response = session.call("task_create", serde_json::json!({
-        "project": "Proj", "title": "t2", "description": "d", "label": "feature", "depends_on": "PRJ-1"
+        "workspace": "Proj", "title": "t2", "description": "d", "label": "feature", "depends_on": "PRJ-1"
     }));
     assert!(!is_error(&response));
 
@@ -940,12 +940,12 @@ fn task_create_with_invalid_depends_on_returns_error() {
     let mut session = McpSession::new(&db_path);
 
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "g"}),
     );
 
     let response = session.call("task_create", serde_json::json!({
-        "project": "Proj", "title": "t1", "description": "d", "label": "feature", "depends_on": "PRJ-99"
+        "workspace": "Proj", "title": "t1", "description": "d", "label": "feature", "depends_on": "PRJ-99"
     }));
     assert!(is_error(&response));
 
@@ -961,12 +961,12 @@ fn task_update_changes_title() {
     let mut session = McpSession::new(&db_path);
 
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "g"}),
     );
     session.call(
         "task_create",
-        serde_json::json!({"project": "Proj", "title": "old", "description": "d", "label": "feature"}),
+        serde_json::json!({"workspace": "Proj", "title": "old", "description": "d", "label": "feature"}),
     );
 
     let response = session.call(
@@ -1008,12 +1008,12 @@ fn task_update_no_options_returns_error() {
     let mut session = McpSession::new(&db_path);
 
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "g"}),
     );
     session.call(
         "task_create",
-        serde_json::json!({"project": "Proj", "title": "t", "description": "d", "label": "feature"}),
+        serde_json::json!({"workspace": "Proj", "title": "t", "description": "d", "label": "feature"}),
     );
 
     let response = session.call("task_update", serde_json::json!({"task_id": "PRJ-1"}));
@@ -1032,12 +1032,12 @@ fn task_move_transitions_status() {
     let mut session = McpSession::new(&db_path);
 
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "g"}),
     );
     session.call(
         "task_create",
-        serde_json::json!({"project": "Proj", "title": "t", "description": "d", "label": "feature"}),
+        serde_json::json!({"workspace": "Proj", "title": "t", "description": "d", "label": "feature"}),
     );
 
     let response = session.call(
@@ -1079,12 +1079,12 @@ fn task_move_fsm_violation_returns_error() {
     let mut session = McpSession::new(&db_path);
 
     session.call(
-        "project_create",
+        "workspace_create",
         serde_json::json!({"name": "Proj", "prefix": "PRJ", "goal": "g"}),
     );
     session.call(
         "task_create",
-        serde_json::json!({"project": "Proj", "title": "t", "description": "d", "label": "feature"}),
+        serde_json::json!({"workspace": "Proj", "title": "t", "description": "d", "label": "feature"}),
     );
 
     // backlog → done 은 FSM 위반 (backlog → unstarted/canceled만 허용)

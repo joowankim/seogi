@@ -5,14 +5,14 @@ use rusqlite::Connection;
 
 // Q17: 명시적 prefix로 create → 성공 메시지, exit 0
 #[test]
-fn test_project_create_with_prefix() {
+fn test_workspace_create_with_prefix() {
     let dir = tempfile::tempdir().unwrap();
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
     let output = run_seogi(
         &[
-            "project",
+            "workspace",
             "create",
             "--name",
             "Seogi",
@@ -54,7 +54,7 @@ fn test_project_create_with_prefix() {
 
 // Q18: 중복 prefix → stderr 에러, exit != 0
 #[test]
-fn test_project_create_duplicate_prefix() {
+fn test_workspace_create_duplicate_prefix() {
     let dir = tempfile::tempdir().unwrap();
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
@@ -62,7 +62,7 @@ fn test_project_create_duplicate_prefix() {
     // 첫 번째 생성: 성공
     let output1 = run_seogi(
         &[
-            "project",
+            "workspace",
             "create",
             "--name",
             "Seogi",
@@ -78,14 +78,14 @@ fn test_project_create_duplicate_prefix() {
     // 두 번째 생성: 중복 prefix
     let output2 = run_seogi(
         &[
-            "project",
+            "workspace",
             "create",
             "--name",
             "Other",
             "--prefix",
             "SEO",
             "--goal",
-            "다른 프로젝트",
+            "다른 워크스페이스",
         ],
         db,
     );
@@ -107,15 +107,15 @@ fn test_project_create_duplicate_prefix() {
 
 // Q19: list → 테이블 출력
 #[test]
-fn test_project_list_table() {
+fn test_workspace_list_table() {
     let dir = tempfile::tempdir().unwrap();
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    // 프로젝트 2개 생성
+    // 워크스페이스 2개 생성
     run_seogi(
         &[
-            "project",
+            "workspace",
             "create",
             "--name",
             "Seogi",
@@ -128,7 +128,7 @@ fn test_project_list_table() {
     );
     run_seogi(
         &[
-            "project",
+            "workspace",
             "create",
             "--name",
             "Local",
@@ -140,7 +140,7 @@ fn test_project_list_table() {
         db,
     );
 
-    let output = run_seogi(&["project", "list"], db);
+    let output = run_seogi(&["workspace", "list"], db);
 
     assert!(
         output.status.success(),
@@ -157,14 +157,14 @@ fn test_project_list_table() {
 
 // Q20: list --json → JSON 배열
 #[test]
-fn test_project_list_json() {
+fn test_workspace_list_json() {
     let dir = tempfile::tempdir().unwrap();
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
     run_seogi(
         &[
-            "project",
+            "workspace",
             "create",
             "--name",
             "Seogi",
@@ -176,7 +176,7 @@ fn test_project_list_json() {
         db,
     );
 
-    let output = run_seogi(&["project", "list", "--json"], db);
+    let output = run_seogi(&["workspace", "list", "--json"], db);
 
     assert!(
         output.status.success(),
@@ -194,12 +194,12 @@ fn test_project_list_json() {
 
 // Q21: 빈 목록 → 빈 결과
 #[test]
-fn test_project_list_empty() {
+fn test_workspace_list_empty() {
     let dir = tempfile::tempdir().unwrap();
     let db_path = dir.path().join("seogi.db");
     let db = db_path.to_str().unwrap();
 
-    let output = run_seogi(&["project", "list", "--json"], db);
+    let output = run_seogi(&["workspace", "list", "--json"], db);
 
     assert!(
         output.status.success(),
