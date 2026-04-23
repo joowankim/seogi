@@ -105,7 +105,7 @@ fn test_task_create_success() {
 
     // next_seq 증가 검증
     let next_seq: i64 = conn
-        .query_row("SELECT next_seq FROM projects LIMIT 1", [], |r| r.get(0))
+        .query_row("SELECT next_seq FROM workspaces LIMIT 1", [], |r| r.get(0))
         .unwrap();
     assert_eq!(next_seq, 2);
 }

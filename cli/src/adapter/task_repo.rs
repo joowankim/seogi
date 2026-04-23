@@ -30,7 +30,7 @@ const TASK_DETAIL_SELECT: &str = "\
     t.created_at, t.updated_at \
     FROM tasks t \
     JOIN statuses s ON t.status_id = s.id \
-    JOIN projects p ON t.project_id = p.id";
+    JOIN workspaces p ON t.workspace_id = p.id";
 
 /// 태스크를 DB에 저장한다.
 ///
@@ -39,7 +39,7 @@ const TASK_DETAIL_SELECT: &str = "\
 /// INSERT 실패 시 `rusqlite::Error`.
 pub fn save(conn: &Connection, task: &Task) -> rusqlite::Result<()> {
     conn.execute(
-        "INSERT INTO tasks (id, title, description, label, status_id, project_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO tasks (id, title, description, label, status_id, workspace_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         (
             task.id(),
             task.title(),
@@ -143,7 +143,7 @@ pub fn find_title_and_project(
     task_id: &str,
 ) -> rusqlite::Result<Option<(String, String)>> {
     let mut stmt = conn.prepare(
-        "SELECT t.title, p.name FROM tasks t JOIN projects p ON t.project_id = p.id WHERE t.id = ?1",
+        "SELECT t.title, p.name FROM tasks t JOIN workspaces p ON t.workspace_id = p.id WHERE t.id = ?1",
     )?;
     let mut rows = stmt.query_map([task_id], |row| {
         Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))

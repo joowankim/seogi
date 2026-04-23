@@ -18,8 +18,8 @@ pub fn tool_use_from_row(row: &Row<'_>) -> rusqlite::Result<ToolUse> {
     Ok(ToolUse::new(
         row.get("id")?,
         SessionId::new(row.get::<_, String>("session_id")?),
-        row.get("project")?,
-        row.get("project_path")?,
+        row.get("workspace")?,
+        row.get("workspace_path")?,
         row.get("tool_name")?,
         row.get("tool_input")?,
         Ms::new(row.get("duration_ms")?),
@@ -36,8 +36,8 @@ pub fn tool_failure_from_row(row: &Row<'_>) -> rusqlite::Result<ToolFailure> {
     Ok(ToolFailure::new(
         row.get("id")?,
         SessionId::new(row.get::<_, String>("session_id")?),
-        row.get("project")?,
-        row.get("project_path")?,
+        row.get("workspace")?,
+        row.get("workspace_path")?,
         row.get("tool_name")?,
         row.get("error")?,
         Timestamp::new(row.get("timestamp")?),
@@ -53,7 +53,7 @@ fn parse_datetime(row: &Row<'_>, column: &str) -> rusqlite::Result<chrono::DateT
         })
 }
 
-/// `projects` 테이블의 한 행을 `Project` 도메인 타입으로 변환한다.
+/// `workspaces` 테이블의 한 행을 `Project` 도메인 타입으로 변환한다.
 ///
 /// # Errors
 ///
@@ -83,15 +83,15 @@ pub fn system_event_from_row(row: &Row<'_>) -> rusqlite::Result<SystemEvent> {
     Ok(SystemEvent::new(
         row.get("id")?,
         SessionId::new(row.get::<_, String>("session_id")?),
-        row.get("project")?,
-        row.get("project_path")?,
+        row.get("workspace")?,
+        row.get("workspace_path")?,
         row.get("event_type")?,
         row.get("content")?,
         Timestamp::new(row.get("timestamp")?),
     ))
 }
 
-/// tasks JOIN statuses JOIN projects 쿼리 결과를 `TaskListRow`로 변환한다.
+/// tasks JOIN statuses JOIN workspaces 쿼리 결과를 `TaskListRow`로 변환한다.
 ///
 /// # Errors
 ///

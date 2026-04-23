@@ -35,13 +35,13 @@ fn test_project_create_with_prefix() {
 
     let conn = Connection::open(&db_path).unwrap();
     let count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM projects", [], |r| r.get(0))
+        .query_row("SELECT COUNT(*) FROM workspaces", [], |r| r.get(0))
         .unwrap();
     assert_eq!(count, 1);
 
     let (name, prefix, goal, next_seq): (String, String, String, i64) = conn
         .query_row(
-            "SELECT name, prefix, goal, next_seq FROM projects LIMIT 1",
+            "SELECT name, prefix, goal, next_seq FROM workspaces LIMIT 1",
             [],
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
         )
@@ -100,7 +100,7 @@ fn test_project_create_duplicate_prefix() {
     // DB에 여전히 1개만 존재
     let conn = Connection::open(&db_path).unwrap();
     let count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM projects", [], |r| r.get(0))
+        .query_row("SELECT COUNT(*) FROM workspaces", [], |r| r.get(0))
         .unwrap();
     assert_eq!(count, 1);
 }

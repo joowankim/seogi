@@ -71,7 +71,7 @@ fn test_notification_hook_saves_to_db() {
         .unwrap();
     assert_eq!(count, 1);
 
-    let (session_id, event_type, content, project, project_path): (
+    let (session_id, event_type, content, workspace, workspace_path): (
         String,
         String,
         String,
@@ -79,7 +79,7 @@ fn test_notification_hook_saves_to_db() {
         String,
     ) = conn
         .query_row(
-            "SELECT session_id, event_type, content, project, project_path FROM system_events LIMIT 1",
+            "SELECT session_id, event_type, content, workspace, workspace_path FROM system_events LIMIT 1",
             [],
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
         )
@@ -87,8 +87,8 @@ fn test_notification_hook_saves_to_db() {
     assert_eq!(session_id, "sess-notif-123");
     assert_eq!(event_type, "Notification");
     assert_eq!(content, "Permission required for Bash");
-    assert_eq!(project, "seogi");
-    assert_eq!(project_path, "/Users/kim/projects/seogi");
+    assert_eq!(workspace, "seogi");
+    assert_eq!(workspace_path, "/Users/kim/projects/seogi");
 }
 
 #[test]
@@ -156,7 +156,7 @@ fn test_stop_hook_saves_to_db() {
         .unwrap();
     assert_eq!(count, 1);
 
-    let (session_id, event_type, content, project, project_path): (
+    let (session_id, event_type, content, workspace, workspace_path): (
         String,
         String,
         String,
@@ -164,7 +164,7 @@ fn test_stop_hook_saves_to_db() {
         String,
     ) = conn
         .query_row(
-            "SELECT session_id, event_type, content, project, project_path FROM system_events LIMIT 1",
+            "SELECT session_id, event_type, content, workspace, workspace_path FROM system_events LIMIT 1",
             [],
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
         )
@@ -172,8 +172,8 @@ fn test_stop_hook_saves_to_db() {
     assert_eq!(session_id, "sess-stop-456");
     assert_eq!(event_type, "Stop");
     assert_eq!(content, "end_turn");
-    assert_eq!(project, "seogi");
-    assert_eq!(project_path, "/Users/kim/projects/seogi");
+    assert_eq!(workspace, "seogi");
+    assert_eq!(workspace_path, "/Users/kim/projects/seogi");
 }
 
 #[test]

@@ -10,7 +10,7 @@ use crate::domain::project::Project;
 /// INSERT 실패 시 `rusqlite::Error`.
 pub fn save(conn: &Connection, project: &Project) -> rusqlite::Result<()> {
     conn.execute(
-        "INSERT INTO projects (id, name, prefix, goal, next_seq, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO workspaces (id, name, prefix, goal, next_seq, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         (
             project.id(),
             project.name(),
@@ -31,7 +31,7 @@ pub fn save(conn: &Connection, project: &Project) -> rusqlite::Result<()> {
 /// SELECT 실패 시 `rusqlite::Error`.
 pub fn list_all(conn: &Connection) -> rusqlite::Result<Vec<Project>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, prefix, goal, next_seq, created_at, updated_at FROM projects ORDER BY created_at",
+        "SELECT id, name, prefix, goal, next_seq, created_at, updated_at FROM workspaces ORDER BY created_at",
     )?;
     let rows = stmt.query_map([], project_from_row)?;
     rows.collect()
@@ -44,7 +44,7 @@ pub fn list_all(conn: &Connection) -> rusqlite::Result<Vec<Project>> {
 /// SELECT 실패 시 `rusqlite::Error`.
 pub fn find_by_prefix(conn: &Connection, prefix: &str) -> rusqlite::Result<Option<Project>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, prefix, goal, next_seq, created_at, updated_at FROM projects WHERE prefix = ?1",
+        "SELECT id, name, prefix, goal, next_seq, created_at, updated_at FROM workspaces WHERE prefix = ?1",
     )?;
     let mut rows = stmt.query_map([prefix], project_from_row)?;
     rows.next().transpose()
@@ -57,7 +57,7 @@ pub fn find_by_prefix(conn: &Connection, prefix: &str) -> rusqlite::Result<Optio
 /// SELECT 실패 시 `rusqlite::Error`.
 pub fn find_by_name(conn: &Connection, name: &str) -> rusqlite::Result<Option<Project>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, prefix, goal, next_seq, created_at, updated_at FROM projects WHERE name = ?1",
+        "SELECT id, name, prefix, goal, next_seq, created_at, updated_at FROM workspaces WHERE name = ?1",
     )?;
     let mut rows = stmt.query_map([name], project_from_row)?;
     rows.next().transpose()
@@ -70,7 +70,7 @@ pub fn find_by_name(conn: &Connection, name: &str) -> rusqlite::Result<Option<Pr
 /// UPDATE 실패 시 `rusqlite::Error`.
 pub fn increment_next_seq(conn: &Connection, project_id: &str) -> rusqlite::Result<()> {
     conn.execute(
-        "UPDATE projects SET next_seq = next_seq + 1 WHERE id = ?1",
+        "UPDATE workspaces SET next_seq = next_seq + 1 WHERE id = ?1",
         [project_id],
     )?;
     Ok(())
