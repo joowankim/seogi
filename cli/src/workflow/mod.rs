@@ -1,4 +1,5 @@
 pub mod changelog;
+pub mod cycle;
 pub mod log_failure;
 pub mod log_system;
 pub mod log_tool;

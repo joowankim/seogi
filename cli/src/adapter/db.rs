@@ -12,8 +12,9 @@ const MIGRATION_V3_TO_V4: &str = include_str!("sql/migration_v3_to_v4.sql");
 const MIGRATION_V4_TO_V5: &str = include_str!("sql/migration_v4_to_v5.sql");
 const MIGRATION_V5_TO_V6: &str = include_str!("sql/migration_v5_to_v6.sql");
 const MIGRATION_V6_TO_V7: &str = include_str!("sql/migration_v6_to_v7.sql");
+const MIGRATION_V7_TO_V8: &str = include_str!("sql/migration_v7_to_v8.sql");
 
-const SCHEMA_VERSION: i64 = 7;
+const SCHEMA_VERSION: i64 = 8;
 
 fn apply_schema(conn: &Connection) -> Result<(), AdapterError> {
     conn.execute_batch(SCHEMA_SQL)?;
@@ -46,6 +47,9 @@ fn setup_connection(conn: Connection) -> Result<Connection, AdapterError> {
         }
         if version == 6 {
             conn.execute_batch(MIGRATION_V6_TO_V7)?;
+        }
+        if version < 8 {
+            conn.execute_batch(MIGRATION_V7_TO_V8)?;
         }
         apply_schema(&conn)?;
         conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
@@ -95,8 +99,10 @@ mod tests {
         .unwrap();
     }
 
-    const EXPECTED_TABLES: [&str; 9] = [
+    const EXPECTED_TABLES: [&str; 11] = [
         "changelog",
+        "cycle_tasks",
+        "cycles",
         "statuses",
         "system_events",
         "task_dependencies",

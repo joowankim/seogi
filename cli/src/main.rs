@@ -34,6 +34,11 @@ enum Commands {
         #[command(subcommand)]
         action: StatusAction,
     },
+    /// 사이클 관리
+    Cycle {
+        #[command(subcommand)]
+        action: CycleAction,
+    },
     /// 태스크 관리
     Task {
         #[command(subcommand)]
@@ -200,6 +205,48 @@ enum TaskAction {
 }
 
 #[derive(Subcommand)]
+enum CycleAction {
+    /// 사이클 생성
+    Create {
+        /// 워크스페이스 이름
+        #[arg(long)]
+        workspace: String,
+        /// 사이클 이름
+        #[arg(long)]
+        name: String,
+        /// 시작일 (YYYY-MM-DD)
+        #[arg(long)]
+        start: String,
+        /// 종료일 (YYYY-MM-DD)
+        #[arg(long)]
+        end: String,
+    },
+    /// 사이클 목록 조회
+    List {
+        /// 워크스페이스 이름 필터
+        #[arg(long)]
+        workspace: Option<String>,
+        /// JSON 형식으로 출력
+        #[arg(long)]
+        json: bool,
+    },
+    /// 사이클 수정
+    Update {
+        /// 사이클 ID
+        cycle_id: String,
+        /// 변경할 이름
+        #[arg(long)]
+        name: Option<String>,
+        /// 변경할 시작일
+        #[arg(long)]
+        start: Option<String>,
+        /// 변경할 종료일
+        #[arg(long)]
+        end: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
 enum ChangelogAction {
     /// 변경 이력 추가
     Add {
@@ -260,6 +307,36 @@ fn main() -> Result<()> {
                 }
                 WorkspaceAction::List { json } => {
                     seogi::entrypoint::workspace::list(&conn, json)?;
+                }
+            }
+        }
+        Commands::Cycle { action } => {
+            let conn = open_db()?;
+            match action {
+                CycleAction::Create {
+                    workspace,
+                    name,
+                    start,
+                    end,
+                } => {
+                    seogi::entrypoint::cycle::create(&conn, &workspace, &name, &start, &end)?;
+                }
+                CycleAction::List { workspace, json } => {
+                    seogi::entrypoint::cycle::list(&conn, workspace.as_deref(), json)?;
+                }
+                CycleAction::Update {
+                    cycle_id,
+                    name,
+                    start,
+                    end,
+                } => {
+                    seogi::entrypoint::cycle::update(
+                        &conn,
+                        &cycle_id,
+                        name.as_deref(),
+                        start.as_deref(),
+                        end.as_deref(),
+                    )?;
                 }
             }
         }

@@ -1,3 +1,4 @@
+pub mod cycle;
 pub mod dependency;
 pub mod error;
 pub mod log;

@@ -3,6 +3,7 @@ use std::str::FromStr;
 use chrono::DateTime;
 use rusqlite::Row;
 
+use crate::domain::cycle::{Cycle, CycleStatus};
 use crate::domain::log::{SystemEvent, ToolFailure, ToolUse};
 use crate::domain::status::{Status, StatusCategory};
 use crate::domain::task::TaskEvent;
@@ -53,7 +54,7 @@ fn parse_datetime(row: &Row<'_>, column: &str) -> rusqlite::Result<chrono::DateT
         })
 }
 
-/// `workspaces` 테이블의 한 행을 `Project` 도메인 타입으로 변환한다.
+/// `workspaces` 테이블의 한 행을 `Workspace` 도메인 타입으로 변환한다.
 ///
 /// # Errors
 ///
@@ -124,6 +125,28 @@ pub fn task_event_from_row(row: &Row<'_>) -> rusqlite::Result<TaskEvent> {
         row.get("to_status")?,
         row.get("session_id")?,
         Timestamp::new(row.get("timestamp")?),
+    ))
+}
+
+/// `cycles` 테이블의 한 행을 `Cycle` 도메인 타입으로 변환한다.
+///
+/// # Errors
+///
+/// 컬럼 읽기 또는 status 파싱 실패 시 `rusqlite::Error`.
+pub fn cycle_from_row(row: &Row<'_>) -> rusqlite::Result<Cycle> {
+    let status_str: String = row.get("status")?;
+    let status = CycleStatus::from_str(&status_str).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(e))
+    })?;
+    Ok(Cycle::from_row(
+        row.get("id")?,
+        row.get("workspace_id")?,
+        row.get("name")?,
+        status,
+        row.get("start_date")?,
+        row.get("end_date")?,
+        parse_datetime(row, "created_at")?,
+        parse_datetime(row, "updated_at")?,
     ))
 }
 
