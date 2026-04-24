@@ -4,8 +4,10 @@ use chrono::Utc;
 use rusqlite::Connection;
 
 use crate::adapter::{
-    status_repo, task_dependency_repo, task_event_repo, task_repo, workspace_repo,
+    cycle_repo, cycle_task_repo, status_repo, task_dependency_repo, task_event_repo, task_repo,
+    workspace_repo,
 };
+use crate::domain::cycle::Assigned;
 use crate::domain::error::DomainError;
 use crate::domain::status::StatusCategory;
 use crate::domain::task::{CLI_SESSION_ID, Label, Task, TaskEvent};
@@ -62,6 +64,9 @@ pub fn create(
     task_event_repo::save(conn, &event)?;
 
     workspace_repo::increment_next_seq(conn, workspace.id())?;
+
+    // 자동 포함: active cycle이 있으면 assigned=auto로 배정 (best-effort)
+    let _ = try_auto_assign(conn, workspace.id(), task.id(), Assigned::Auto);
 
     Ok(task)
 }
@@ -279,10 +284,35 @@ pub fn move_task(
     );
     task_event_repo::save(conn, &event)?;
 
+    // 자동 포함: started/completed 전환 시 미배정 태스크를 active cycle에 배정 (best-effort)
+    if matches!(
+        target_status.category(),
+        StatusCategory::Started | StatusCategory::Completed
+    ) {
+        let _ = try_auto_assign(conn, &task_row.workspace_id, task_id, Assigned::Auto);
+    }
+
     Ok((
         current_status.name().to_string(),
         target_status.name().to_string(),
     ))
+}
+
+/// active Cycle이 있고 태스크가 미배정이면 자동 배정한다.
+fn try_auto_assign(
+    conn: &Connection,
+    workspace_id: &str,
+    task_id: &str,
+    assigned: Assigned,
+) -> Result<(), DomainError> {
+    let today = Utc::now().date_naive().format("%Y-%m-%d").to_string();
+    let active = cycle_repo::find_active_by_workspace(conn, workspace_id, &today)?;
+    if let Some(cycle) = active
+        && !cycle_task_repo::is_task_in_any_cycle(conn, task_id)?
+    {
+        cycle_task_repo::save(conn, cycle.id(), task_id, assigned)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -731,5 +761,119 @@ mod tests {
 
         let blocked = blocked_task_ids(&conn).unwrap();
         assert!(!blocked.contains("SEO-1"));
+    }
+
+    // ── 자동 포함 테스트 ──
+
+    fn setup_active_cycle(conn: &Connection) -> String {
+        let today = Utc::now().date_naive().format("%Y-%m-%d").to_string();
+        let end = (Utc::now().date_naive() + chrono::Duration::days(14))
+            .format("%Y-%m-%d")
+            .to_string();
+        let cycle =
+            crate::workflow::cycle::create(conn, "Seogi", "Active Sprint", &today, &end).unwrap();
+        cycle.id().to_string()
+    }
+
+    // Q21: task create → active cycle에 자동 배정
+    #[test]
+    fn test_task_create_auto_assign() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        let cycle_id = setup_active_cycle(&conn);
+
+        let task = create(&conn, "Seogi", "auto task", "desc", "feature").unwrap();
+
+        assert!(cycle_task_repo::is_assigned_to_cycle(&conn, &cycle_id, task.id()).unwrap());
+    }
+
+    // Q22: task create → active cycle 없을 때 자동 배정 안 함
+    #[test]
+    fn test_task_create_no_active_cycle() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        // 미래 날짜의 cycle (planned)
+        crate::workflow::cycle::create(&conn, "Seogi", "Future", "2099-01-01", "2099-01-14")
+            .unwrap();
+
+        let task = create(&conn, "Seogi", "no auto", "desc", "feature").unwrap();
+
+        assert!(!cycle_task_repo::is_task_in_any_cycle(&conn, task.id()).unwrap());
+    }
+
+    // Q23: task move started → 미배정 태스크 자동 추가
+    #[test]
+    fn test_task_move_auto_assign_started() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+
+        // active cycle 없이 태스크 생성
+        let task = create(&conn, "Seogi", "t1", "d1", "feature").unwrap();
+        assert!(!cycle_task_repo::is_task_in_any_cycle(&conn, task.id()).unwrap());
+
+        // 이제 active cycle 생성
+        let cycle_id = setup_active_cycle(&conn);
+
+        // backlog → todo → in_progress
+        move_task(&conn, task.id(), "todo").unwrap();
+        move_task(&conn, task.id(), "in_progress").unwrap();
+
+        assert!(cycle_task_repo::is_assigned_to_cycle(&conn, &cycle_id, task.id()).unwrap());
+    }
+
+    // Q24: task move started → 이미 배정된 태스크는 추가 안 함
+    #[test]
+    fn test_task_move_already_assigned() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+        let _cycle_id = setup_active_cycle(&conn);
+
+        let task = create(&conn, "Seogi", "t1", "d1", "feature").unwrap();
+        // create 시 자동 배정됨
+
+        move_task(&conn, task.id(), "todo").unwrap();
+        move_task(&conn, task.id(), "in_progress").unwrap();
+
+        // cycle_tasks에 1건만 있어야 함 (중복 추가 안 됨)
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM cycle_tasks WHERE task_id = ?1",
+                [task.id()],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    // Q25: task move completed → 미배정 태스크 자동 추가
+    #[test]
+    fn test_task_move_auto_assign_completed() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+
+        let task = create(&conn, "Seogi", "t1", "d1", "feature").unwrap();
+
+        let cycle_id = setup_active_cycle(&conn);
+
+        move_task(&conn, task.id(), "todo").unwrap();
+        move_task(&conn, task.id(), "in_progress").unwrap();
+        // in_progress에서 이미 자동 배정됨, done에서는 중복 안 됨
+        move_task(&conn, task.id(), "done").unwrap();
+
+        assert!(cycle_task_repo::is_assigned_to_cycle(&conn, &cycle_id, task.id()).unwrap());
+    }
+
+    // Q26: task move → active cycle 없을 때 자동 추가 안 함
+    #[test]
+    fn test_task_move_no_active_cycle() {
+        let conn = initialize_in_memory().unwrap();
+        setup_project(&conn);
+
+        let task = create(&conn, "Seogi", "t1", "d1", "feature").unwrap();
+
+        move_task(&conn, task.id(), "todo").unwrap();
+        move_task(&conn, task.id(), "in_progress").unwrap();
+
+        assert!(!cycle_task_repo::is_task_in_any_cycle(&conn, task.id()).unwrap());
     }
 }

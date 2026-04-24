@@ -104,6 +104,7 @@ pub fn find_by_id_detailed(conn: &Connection, id: &str) -> rusqlite::Result<Opti
 pub struct TaskRow {
     pub id: String,
     pub status_id: String,
+    pub workspace_id: String,
 }
 
 /// id로 태스크를 조회한다.
@@ -112,11 +113,12 @@ pub struct TaskRow {
 ///
 /// SELECT 실패 시 `rusqlite::Error`.
 pub fn find_by_id(conn: &Connection, id: &str) -> rusqlite::Result<Option<TaskRow>> {
-    let mut stmt = conn.prepare("SELECT id, status_id FROM tasks WHERE id = ?1")?;
+    let mut stmt = conn.prepare("SELECT id, status_id, workspace_id FROM tasks WHERE id = ?1")?;
     let mut rows = stmt.query_map([id], |row| {
         Ok(TaskRow {
             id: row.get("id")?,
             status_id: row.get("status_id")?,
+            workspace_id: row.get("workspace_id")?,
         })
     })?;
     rows.next().transpose()

@@ -68,3 +68,25 @@ pub fn update(
     println!("Updated cycle {cycle_id}");
     Ok(())
 }
+
+/// `seogi cycle assign` 핸들러.
+///
+/// # Errors
+///
+/// cycle/task 미존재, 중복 배정, DB 에러 시 `anyhow::Error`.
+pub fn assign(conn: &Connection, cycle_id: &str, task_id: &str) -> Result<()> {
+    workflow::cycle::assign(conn, cycle_id, task_id).map_err(|e| anyhow::anyhow!("{e}"))?;
+    println!("Assigned task {task_id} to cycle {cycle_id}");
+    Ok(())
+}
+
+/// `seogi cycle unassign` 핸들러.
+///
+/// # Errors
+///
+/// 미배정, DB 에러 시 `anyhow::Error`.
+pub fn unassign(conn: &Connection, cycle_id: &str, task_id: &str) -> Result<()> {
+    workflow::cycle::unassign(conn, cycle_id, task_id).map_err(|e| anyhow::anyhow!("{e}"))?;
+    println!("Unassigned task {task_id} from cycle {cycle_id}");
+    Ok(())
+}

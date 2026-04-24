@@ -244,6 +244,20 @@ enum CycleAction {
         #[arg(long)]
         end: Option<String>,
     },
+    /// 사이클에 태스크 배정
+    Assign {
+        /// 사이클 ID
+        cycle_id: String,
+        /// 태스크 ID
+        task_id: String,
+    },
+    /// 사이클에서 태스크 배정 해제
+    Unassign {
+        /// 사이클 ID
+        cycle_id: String,
+        /// 태스크 ID
+        task_id: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -337,6 +351,12 @@ fn main() -> Result<()> {
                         start.as_deref(),
                         end.as_deref(),
                     )?;
+                }
+                CycleAction::Assign { cycle_id, task_id } => {
+                    seogi::entrypoint::cycle::assign(&conn, &cycle_id, &task_id)?;
+                }
+                CycleAction::Unassign { cycle_id, task_id } => {
+                    seogi::entrypoint::cycle::unassign(&conn, &cycle_id, &task_id)?;
                 }
             }
         }
