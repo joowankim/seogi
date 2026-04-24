@@ -13,6 +13,10 @@
 
 ## 엔티티
 
+- **Assigned:** `cycle_tasks`의 배정 방식을 나타내는 enum. `planned`(명시적 배정)과 `auto`(자동 포함) 2개 variant. 사이클 리포트에서 계획 완료/비계획 완료 구분의 기준이 된다.
+- **Cycle:** 기간별 목표 단위. 워크스페이스에 속하며, `start_date`/`end_date`로 계획 기간을 정의한다. 태스크를 배정(`CycleTask`)하여 사이클 단위 달성도를 측정하고, 하니스 변경 전후 비교의 기준 구간으로 사용된다. `cycles` 테이블에 대응.
+- **CycleStatus:** cycle의 상태를 나타내는 enum. 3개 고정 값(`planned`, `active`, `completed`). 워크스페이스당 `active` cycle은 1개로 제한된다.
+- **CycleTask:** cycle과 task의 N:M 관계를 나타내는 연결 엔티티. `cycle_id`, `task_id`, `Assigned`를 포함하며 `cycle_tasks` 테이블에 대응. 복합 PK(`cycle_id`, `task_id`).
 - **Label:** 태스크의 분류 라벨. 5개 고정 값(feature, bug, refactor, chore, docs)을 코드 enum으로 관리.
 - **MigratedRecord:** JSONL 마이그레이션 시 `LogEntry`를 `ToolUse` 또는 `ToolFailure`로 변환한 결과.
 - **Workspace:** 태스크를 묶는 작업 공간. name, `Prefix`, goal, next_seq을 포함하며 `workspaces` 테이블에 대응. next_seq은 태스크 시퀀스 채번에 사용되며 도메인에서 초기값 1로 설정.

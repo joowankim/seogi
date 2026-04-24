@@ -92,6 +92,31 @@ struct TaskDependParams {
     depends_on: String,
 }
 
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct CycleCreateParams {
+    workspace: String,
+    name: String,
+    start_date: String,
+    end_date: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct CycleListParams {
+    #[serde(default)]
+    workspace: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct CycleUpdateParams {
+    cycle_id: String,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    start_date: Option<String>,
+    #[serde(default)]
+    end_date: Option<String>,
+}
+
 // ── Tool implementations ──
 
 fn success_text(text: String) -> CallToolResult {
@@ -417,6 +442,84 @@ impl SeogiMcpServer {
                     "Removed dependency: {} no longer depends on {}",
                     params.task_id, params.depends_on
                 )),
+                Err(e) => error_text(format!("{e}")),
+            }
+        })
+        .await
+        .expect("spawn_blocking panicked")
+    }
+
+    #[tool(name = "cycle_create", description = "Create a new cycle")]
+    async fn cycle_create(
+        &self,
+        Parameters(params): Parameters<CycleCreateParams>,
+    ) -> CallToolResult {
+        let conn = Arc::clone(&self.conn);
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().expect("db lock poisoned");
+            match workflow::cycle::create(
+                &conn,
+                &params.workspace,
+                &params.name,
+                &params.start_date,
+                &params.end_date,
+            ) {
+                Ok(cycle) => {
+                    let json = serde_json::json!({
+                        "id": cycle.id(),
+                        "name": cycle.name(),
+                        "status": cycle.status().as_str(),
+                        "start_date": cycle.start_date(),
+                        "end_date": cycle.end_date(),
+                    });
+                    success_text(
+                        serde_json::to_string_pretty(&json)
+                            .expect("JSON Value serialization is infallible"),
+                    )
+                }
+                Err(e) => error_text(format!("{e}")),
+            }
+        })
+        .await
+        .expect("spawn_blocking panicked")
+    }
+
+    #[tool(
+        name = "cycle_list",
+        description = "List cycles with optional workspace filter"
+    )]
+    async fn cycle_list(&self, Parameters(params): Parameters<CycleListParams>) -> CallToolResult {
+        let conn = Arc::clone(&self.conn);
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().expect("db lock poisoned");
+            match workflow::cycle::list(&conn, params.workspace.as_deref()) {
+                Ok(rows) => success_text(
+                    serde_json::to_string_pretty(&rows)
+                        .expect("CycleListRow serialization is infallible"),
+                ),
+                Err(e) => error_text(format!("{e}")),
+            }
+        })
+        .await
+        .expect("spawn_blocking panicked")
+    }
+
+    #[tool(name = "cycle_update", description = "Update a cycle")]
+    async fn cycle_update(
+        &self,
+        Parameters(params): Parameters<CycleUpdateParams>,
+    ) -> CallToolResult {
+        let conn = Arc::clone(&self.conn);
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().expect("db lock poisoned");
+            match workflow::cycle::update(
+                &conn,
+                &params.cycle_id,
+                params.name.as_deref(),
+                params.start_date.as_deref(),
+                params.end_date.as_deref(),
+            ) {
+                Ok(()) => success_text(format!("Updated cycle {}", params.cycle_id)),
                 Err(e) => error_text(format!("{e}")),
             }
         })
