@@ -456,8 +456,9 @@ impl SeogiMcpServer {
     ) -> CallToolResult {
         let conn = Arc::clone(&self.conn);
         tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().expect("db lock poisoned");
             match workflow::cycle::create(
-                &conn.lock().expect("db lock poisoned"),
+                &conn,
                 &params.workspace,
                 &params.name,
                 &params.start_date,
@@ -490,10 +491,8 @@ impl SeogiMcpServer {
     async fn cycle_list(&self, Parameters(params): Parameters<CycleListParams>) -> CallToolResult {
         let conn = Arc::clone(&self.conn);
         tokio::task::spawn_blocking(move || {
-            match workflow::cycle::list(
-                &conn.lock().expect("db lock poisoned"),
-                params.workspace.as_deref(),
-            ) {
+            let conn = conn.lock().expect("db lock poisoned");
+            match workflow::cycle::list(&conn, params.workspace.as_deref()) {
                 Ok(rows) => success_text(
                     serde_json::to_string_pretty(&rows)
                         .expect("CycleListRow serialization is infallible"),
@@ -512,8 +511,9 @@ impl SeogiMcpServer {
     ) -> CallToolResult {
         let conn = Arc::clone(&self.conn);
         tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().expect("db lock poisoned");
             match workflow::cycle::update(
-                &conn.lock().expect("db lock poisoned"),
+                &conn,
                 &params.cycle_id,
                 params.name.as_deref(),
                 params.start_date.as_deref(),

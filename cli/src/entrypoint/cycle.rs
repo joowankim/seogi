@@ -41,7 +41,7 @@ pub fn list(conn: &Connection, workspace: Option<&str>, json: bool) -> Result<()
         );
         println!("{header}");
         for r in &rows {
-            let short_id = if r.id.len() > 10 { &r.id[..10] } else { &r.id };
+            let short_id = &r.id[..r.id.len().min(10)];
             println!(
                 "{:<12} {:<16} {:<12} {:<14} {:<14} {}",
                 short_id, r.name, r.status, r.start_date, r.end_date, r.workspace_name

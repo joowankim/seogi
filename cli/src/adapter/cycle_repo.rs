@@ -4,6 +4,9 @@ use rusqlite::Connection;
 use super::mapper::cycle_from_row;
 use crate::domain::cycle::Cycle;
 
+const CYCLE_COLUMNS: &str =
+    "id, workspace_id, name, status, start_date, end_date, created_at, updated_at";
+
 /// Cycle을 DB에 저장한다.
 ///
 /// # Errors
@@ -32,9 +35,9 @@ pub fn save(conn: &Connection, cycle: &Cycle) -> rusqlite::Result<()> {
 ///
 /// SELECT 실패 시 `rusqlite::Error`.
 pub fn list_all(conn: &Connection) -> rusqlite::Result<Vec<Cycle>> {
-    let mut stmt = conn.prepare(
-        "SELECT id, workspace_id, name, status, start_date, end_date, created_at, updated_at FROM cycles ORDER BY created_at DESC",
-    )?;
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {CYCLE_COLUMNS} FROM cycles ORDER BY created_at DESC"
+    ))?;
     let rows = stmt.query_map([], cycle_from_row)?;
     rows.collect()
 }
@@ -45,9 +48,9 @@ pub fn list_all(conn: &Connection) -> rusqlite::Result<Vec<Cycle>> {
 ///
 /// SELECT 실패 시 `rusqlite::Error`.
 pub fn list_by_workspace(conn: &Connection, workspace_id: &str) -> rusqlite::Result<Vec<Cycle>> {
-    let mut stmt = conn.prepare(
-        "SELECT id, workspace_id, name, status, start_date, end_date, created_at, updated_at FROM cycles WHERE workspace_id = ?1 ORDER BY created_at DESC",
-    )?;
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {CYCLE_COLUMNS} FROM cycles WHERE workspace_id = ?1 ORDER BY created_at DESC"
+    ))?;
     let rows = stmt.query_map([workspace_id], cycle_from_row)?;
     rows.collect()
 }
@@ -58,9 +61,7 @@ pub fn list_by_workspace(conn: &Connection, workspace_id: &str) -> rusqlite::Res
 ///
 /// SELECT 실패 시 `rusqlite::Error`.
 pub fn find_by_id(conn: &Connection, id: &str) -> rusqlite::Result<Option<Cycle>> {
-    let mut stmt = conn.prepare(
-        "SELECT id, workspace_id, name, status, start_date, end_date, created_at, updated_at FROM cycles WHERE id = ?1",
-    )?;
+    let mut stmt = conn.prepare(&format!("SELECT {CYCLE_COLUMNS} FROM cycles WHERE id = ?1"))?;
     let mut rows = stmt.query_map([id], cycle_from_row)?;
     rows.next().transpose()
 }

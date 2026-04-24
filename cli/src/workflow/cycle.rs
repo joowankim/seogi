@@ -88,13 +88,7 @@ pub fn update(
         cycle::validate_date_order(final_start, final_end)?;
     }
 
-    let rows = cycle_repo::update(conn, cycle_id, name, start_date, end_date)?;
-    if rows == 0 {
-        return Err(DomainError::Validation(format!(
-            "Cycle \"{cycle_id}\" not found"
-        )));
-    }
-
+    cycle_repo::update(conn, cycle_id, name, start_date, end_date)?;
     Ok(())
 }
 
