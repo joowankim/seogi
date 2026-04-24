@@ -48,6 +48,46 @@ impl std::fmt::Display for CycleStatus {
     }
 }
 
+/// `cycle_tasks`의 배정 방식.
+///
+/// `planned`: 명시적 배정. `auto`: 자동 포함 (task create/move 시).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Assigned {
+    Planned,
+    Auto,
+}
+
+impl Assigned {
+    #[must_use]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Planned => "planned",
+            Self::Auto => "auto",
+        }
+    }
+}
+
+impl FromStr for Assigned {
+    type Err = DomainError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "planned" => Ok(Self::Planned),
+            "auto" => Ok(Self::Auto),
+            _ => Err(DomainError::Validation(format!(
+                "Invalid Assigned: \"{s}\". Must be one of: planned, auto"
+            ))),
+        }
+    }
+}
+
+impl std::fmt::Display for Assigned {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
 /// 기간별 목표 단위.
 ///
 /// 워크스페이스에 속하며, 태스크를 배정하여 달성도를 측정한다.
@@ -313,6 +353,34 @@ mod tests {
         assert_eq!(cycle.id(), "abc123");
         assert_eq!(cycle.name(), "Sprint 1");
         assert_eq!(cycle.start_date(), "2026-05-01");
+    }
+
+    // Q1: Assigned enum 2개 variant
+    #[test]
+    fn test_assigned_variant_count() {
+        let variants = [Assigned::Planned, Assigned::Auto];
+        assert_eq!(variants.len(), 2);
+    }
+
+    // Q2: Assigned::as_str
+    #[test]
+    fn test_assigned_as_str() {
+        assert_eq!(Assigned::Planned.as_str(), "planned");
+        assert_eq!(Assigned::Auto.as_str(), "auto");
+    }
+
+    // Q3: Assigned::from_str 유효값
+    #[test]
+    fn test_assigned_from_str_valid() {
+        assert_eq!(Assigned::from_str("planned").unwrap(), Assigned::Planned);
+        assert_eq!(Assigned::from_str("auto").unwrap(), Assigned::Auto);
+    }
+
+    // Q4: Assigned::from_str 무효값
+    #[test]
+    fn test_assigned_from_str_invalid() {
+        assert!(Assigned::from_str("invalid").is_err());
+        assert!(Assigned::from_str("").is_err());
     }
 
     // 기존 테스트: 빈 name → 에러

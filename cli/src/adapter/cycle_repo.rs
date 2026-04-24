@@ -64,6 +64,25 @@ pub fn find_by_id(conn: &Connection, id: &str) -> rusqlite::Result<Option<Cycle>
     rows.next().transpose()
 }
 
+/// 특정 워크스페이스의 active Cycle을 조회한다.
+///
+/// `today` 기준 `start_date <= today <= end_date`인 Cycle을 반환한다.
+///
+/// # Errors
+///
+/// SELECT 실패 시 `rusqlite::Error`.
+pub fn find_active_by_workspace(
+    conn: &Connection,
+    workspace_id: &str,
+    today: &str,
+) -> rusqlite::Result<Option<Cycle>> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {CYCLE_COLUMNS} FROM cycles WHERE workspace_id = ?1 AND start_date <= ?2 AND end_date >= ?2 LIMIT 1"
+    ))?;
+    let mut rows = stmt.query_map([workspace_id, today], cycle_from_row)?;
+    rows.next().transpose()
+}
+
 /// Cycle을 업데이트한다.
 ///
 /// name, `start_date`, `end_date` 중 `Some`인 필드만 업데이트한다.
