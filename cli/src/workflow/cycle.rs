@@ -266,6 +266,32 @@ mod tests {
         assert!(result.is_err());
     }
 
+    // update end_date만 변경 → 성공 (end_date.is_some() 분기 커버)
+    #[test]
+    fn test_update_end_only() {
+        let conn = initialize_in_memory().unwrap();
+        setup_workspace(&conn);
+        let cycle = create(&conn, "Seogi", "Sprint 1", "2026-05-01", "2026-05-14").unwrap();
+
+        update(&conn, cycle.id(), None, None, Some("2026-05-21")).unwrap();
+
+        let found = cycle_repo::find_by_id(&conn, cycle.id()).unwrap().unwrap();
+        assert_eq!(found.end_date(), "2026-05-21");
+    }
+
+    // update start_date만 변경 → 성공 (start_date.is_some() 분기 커버)
+    #[test]
+    fn test_update_start_only() {
+        let conn = initialize_in_memory().unwrap();
+        setup_workspace(&conn);
+        let cycle = create(&conn, "Seogi", "Sprint 1", "2026-05-05", "2026-05-14").unwrap();
+
+        update(&conn, cycle.id(), None, Some("2026-05-01"), None).unwrap();
+
+        let found = cycle_repo::find_by_id(&conn, cycle.id()).unwrap().unwrap();
+        assert_eq!(found.start_date(), "2026-05-01");
+    }
+
     // Q33: list 존재하지 않는 워크스페이스 필터 → 빈 목록 반환
     #[test]
     fn test_list_unknown_workspace() {
