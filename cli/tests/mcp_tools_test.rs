@@ -1212,3 +1212,74 @@ fn mcp_cycle_update_success() {
 
     session.shutdown();
 }
+
+// ── Q25: MCP cycle_create 겹침 시 에러 ──
+
+#[test]
+fn mcp_cycle_create_overlap_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let mut session = McpSession::new(&db_path);
+
+    session.call(
+        "workspace_create",
+        serde_json::json!({"name": "Seogi", "prefix": "SEO", "goal": "harness"}),
+    );
+    session.call(
+        "cycle_create",
+        serde_json::json!({
+            "workspace": "Seogi",
+            "name": "Sprint 1",
+            "start_date": "2026-05-01",
+            "end_date": "2026-05-14"
+        }),
+    );
+
+    let response = session.call(
+        "cycle_create",
+        serde_json::json!({
+            "workspace": "Seogi",
+            "name": "Sprint 2",
+            "start_date": "2026-05-10",
+            "end_date": "2026-05-24"
+        }),
+    );
+
+    assert!(is_error(&response));
+    let text = extract_text(&response);
+    assert!(text.contains("overlaps"));
+
+    session.shutdown();
+}
+
+// ── Q26: MCP cycle_list 파생 status 포함 ──
+
+#[test]
+fn mcp_cycle_list_derived_status() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let mut session = McpSession::new(&db_path);
+
+    session.call(
+        "workspace_create",
+        serde_json::json!({"name": "Seogi", "prefix": "SEO", "goal": "harness"}),
+    );
+    session.call(
+        "cycle_create",
+        serde_json::json!({
+            "workspace": "Seogi",
+            "name": "Future Sprint",
+            "start_date": "2099-01-01",
+            "end_date": "2099-01-14"
+        }),
+    );
+
+    let response = session.call("cycle_list", serde_json::json!({}));
+
+    assert!(!is_error(&response));
+    let text = extract_text(&response);
+    let data: Vec<serde_json::Value> = serde_json::from_str(text).unwrap();
+    assert_eq!(data[0]["status"], "planned");
+
+    session.shutdown();
+}

@@ -7,6 +7,7 @@ use super::error::DomainError;
 /// Cycle의 상태.
 ///
 /// 3개 고정 값: planned, active, completed.
+/// DB에 저장되지 않고 `start_date`/`end_date` + 현재 날짜로 파생된다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CycleStatus {
@@ -50,12 +51,12 @@ impl std::fmt::Display for CycleStatus {
 /// 기간별 목표 단위.
 ///
 /// 워크스페이스에 속하며, 태스크를 배정하여 달성도를 측정한다.
+/// status는 DB에 저장되지 않고 `start_date`/`end_date` + 현재 날짜로 파생된다.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Cycle {
     id: String,
     workspace_id: String,
     name: String,
-    status: CycleStatus,
     start_date: String,
     end_date: String,
     created_at: DateTime<Utc>,
@@ -65,7 +66,7 @@ pub struct Cycle {
 impl Cycle {
     /// 새 Cycle을 생성한다.
     ///
-    /// 초기 상태는 `planned`. id는 UUID hex 32글자.
+    /// id는 UUID hex 32글자.
     ///
     /// # Errors
     ///
@@ -90,7 +91,6 @@ impl Cycle {
             id: uuid::Uuid::new_v4().simple().to_string(),
             workspace_id: workspace_id.to_string(),
             name: name.to_string(),
-            status: CycleStatus::Planned,
             start_date: start_date.to_string(),
             end_date: end_date.to_string(),
             created_at: now,
@@ -100,12 +100,10 @@ impl Cycle {
 
     /// DB에서 읽은 값으로 복원한다.
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
     pub fn from_row(
         id: String,
         workspace_id: String,
         name: String,
-        status: CycleStatus,
         start_date: String,
         end_date: String,
         created_at: DateTime<Utc>,
@@ -115,12 +113,17 @@ impl Cycle {
             id,
             workspace_id,
             name,
-            status,
             start_date,
             end_date,
             created_at,
             updated_at,
         }
+    }
+
+    /// 현재 날짜 기준으로 Cycle의 상태를 파생한다.
+    #[must_use]
+    pub fn status(&self, today: NaiveDate) -> CycleStatus {
+        derive_status(&self.start_date, &self.end_date, today)
     }
 
     #[must_use]
@@ -136,11 +139,6 @@ impl Cycle {
     #[must_use]
     pub fn name(&self) -> &str {
         &self.name
-    }
-
-    #[must_use]
-    pub fn status(&self) -> CycleStatus {
-        self.status
     }
 
     #[must_use]
@@ -193,6 +191,20 @@ pub fn validate_date_order(start_date: &str, end_date: &str) -> Result<(), Domai
     Ok(())
 }
 
+/// `start_date`/`end_date` + 현재 날짜로 `CycleStatus`를 파생한다.
+#[must_use]
+pub fn derive_status(start_date: &str, end_date: &str, today: NaiveDate) -> CycleStatus {
+    let start = parse_date(start_date).unwrap_or(today);
+    let end = parse_date(end_date).unwrap_or(today);
+    if today < start {
+        CycleStatus::Planned
+    } else if today > end {
+        CycleStatus::Completed
+    } else {
+        CycleStatus::Active
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -201,111 +213,117 @@ mod tests {
         Utc::now()
     }
 
-    // Q1: CycleStatus enum 3개 variant 존재
-    #[test]
-    fn test_cycle_status_variant_count() {
-        let variants = [
-            CycleStatus::Planned,
-            CycleStatus::Active,
-            CycleStatus::Completed,
-        ];
-        assert_eq!(variants.len(), 3);
+    fn date(s: &str) -> NaiveDate {
+        parse_date(s).unwrap()
     }
 
-    // Q2: CycleStatus::as_str → 소문자 문자열 반환
+    // Q1: status(today < start_date) → Planned
     #[test]
-    fn test_cycle_status_as_str() {
-        assert_eq!(CycleStatus::Planned.as_str(), "planned");
-        assert_eq!(CycleStatus::Active.as_str(), "active");
-        assert_eq!(CycleStatus::Completed.as_str(), "completed");
+    fn test_status_planned() {
+        let cycle = Cycle::new("ws1", "Sprint 1", "2026-05-10", "2026-05-20", now()).unwrap();
+        assert_eq!(cycle.status(date("2026-05-09")), CycleStatus::Planned);
     }
 
-    // Q3: CycleStatus::from_str 유효값 → 해당 variant
+    // Q2: status(start_date <= today <= end_date) → Active
     #[test]
-    fn test_cycle_status_from_str_valid() {
+    fn test_status_active() {
+        let cycle = Cycle::new("ws1", "Sprint 1", "2026-05-10", "2026-05-20", now()).unwrap();
+        assert_eq!(cycle.status(date("2026-05-15")), CycleStatus::Active);
+    }
+
+    // Q3: status(today > end_date) → Completed
+    #[test]
+    fn test_status_completed() {
+        let cycle = Cycle::new("ws1", "Sprint 1", "2026-05-10", "2026-05-20", now()).unwrap();
+        assert_eq!(cycle.status(date("2026-05-21")), CycleStatus::Completed);
+    }
+
+    // Q4: status(today == start_date) → Active
+    #[test]
+    fn test_status_boundary_start() {
+        let cycle = Cycle::new("ws1", "Sprint 1", "2026-05-10", "2026-05-20", now()).unwrap();
+        assert_eq!(cycle.status(date("2026-05-10")), CycleStatus::Active);
+    }
+
+    // Q5: status(today == end_date) → Active
+    #[test]
+    fn test_status_boundary_end() {
+        let cycle = Cycle::new("ws1", "Sprint 1", "2026-05-10", "2026-05-20", now()).unwrap();
+        assert_eq!(cycle.status(date("2026-05-20")), CycleStatus::Active);
+    }
+
+    // Q6-Q9: derive_status 독립 함수 검증
+    #[test]
+    fn test_derive_status_planned() {
         assert_eq!(
-            CycleStatus::from_str("planned").unwrap(),
+            derive_status("2026-05-10", "2026-05-20", date("2026-05-09")),
             CycleStatus::Planned
         );
+    }
+
+    #[test]
+    fn test_derive_status_active() {
         assert_eq!(
-            CycleStatus::from_str("active").unwrap(),
+            derive_status("2026-05-10", "2026-05-20", date("2026-05-15")),
             CycleStatus::Active
         );
+    }
+
+    #[test]
+    fn test_derive_status_completed() {
         assert_eq!(
-            CycleStatus::from_str("completed").unwrap(),
+            derive_status("2026-05-10", "2026-05-20", date("2026-05-21")),
             CycleStatus::Completed
         );
     }
 
-    // Q4: CycleStatus::from_str 무효값 → DomainError::Validation
     #[test]
-    fn test_cycle_status_from_str_invalid() {
-        assert!(CycleStatus::from_str("invalid").is_err());
-        assert!(CycleStatus::from_str("").is_err());
-        assert!(CycleStatus::from_str("PLANNED").is_err());
+    fn test_derive_status_boundary() {
+        assert_eq!(
+            derive_status("2026-05-10", "2026-05-20", date("2026-05-10")),
+            CycleStatus::Active
+        );
+        assert_eq!(
+            derive_status("2026-05-10", "2026-05-20", date("2026-05-20")),
+            CycleStatus::Active
+        );
     }
 
-    // Q5: Cycle::new 유효 입력 → id 32글자 hex
+    // Q10: Cycle::new status 파라미터 없이 생성 성공
     #[test]
-    fn test_cycle_new_id_format() {
+    fn test_cycle_new_no_status() {
         let cycle = Cycle::new("ws1", "Sprint 1", "2026-05-01", "2026-05-14", now()).unwrap();
         assert_eq!(cycle.id().len(), 32);
-        assert!(cycle.id().chars().all(|c| c.is_ascii_hexdigit()));
-    }
-
-    // Q6: Cycle::new 유효 입력 → status가 planned
-    #[test]
-    fn test_cycle_new_initial_status() {
-        let cycle = Cycle::new("ws1", "Sprint 1", "2026-05-01", "2026-05-14", now()).unwrap();
-        assert_eq!(cycle.status(), CycleStatus::Planned);
-    }
-
-    // Q7: Cycle::new 유효 입력 → 필드값 보존
-    #[test]
-    fn test_cycle_new_fields() {
-        let ts = now();
-        let cycle = Cycle::new("ws1", "Sprint 1", "2026-05-01", "2026-05-14", ts).unwrap();
-        assert_eq!(cycle.workspace_id(), "ws1");
         assert_eq!(cycle.name(), "Sprint 1");
-        assert_eq!(cycle.start_date(), "2026-05-01");
-        assert_eq!(cycle.end_date(), "2026-05-14");
-        assert_eq!(cycle.created_at(), ts);
-        assert_eq!(cycle.updated_at(), ts);
     }
 
-    // Q8: Cycle::new 빈 name → DomainError::Validation
+    // Q11: Cycle::from_row status 파라미터 없이 복원 성공
     #[test]
-    fn test_cycle_new_empty_name() {
-        assert!(Cycle::new("ws1", "", "2026-05-01", "2026-05-14", now()).is_err());
-    }
-
-    // Q9: Cycle::new start_date > end_date → DomainError::Validation
-    #[test]
-    fn test_cycle_new_start_after_end() {
-        assert!(Cycle::new("ws1", "Sprint 1", "2026-05-15", "2026-05-01", now()).is_err());
-    }
-
-    // Q10: Cycle::from_row 필드값 보존
-    #[test]
-    fn test_cycle_from_row_fields() {
+    fn test_cycle_from_row_no_status() {
         let ts = now();
         let cycle = Cycle::from_row(
             "abc123".to_string(),
             "ws1".to_string(),
             "Sprint 1".to_string(),
-            CycleStatus::Active,
             "2026-05-01".to_string(),
             "2026-05-14".to_string(),
             ts,
             ts,
         );
         assert_eq!(cycle.id(), "abc123");
-        assert_eq!(cycle.workspace_id(), "ws1");
         assert_eq!(cycle.name(), "Sprint 1");
-        assert_eq!(cycle.status(), CycleStatus::Active);
         assert_eq!(cycle.start_date(), "2026-05-01");
-        assert_eq!(cycle.end_date(), "2026-05-14");
-        assert_eq!(cycle.created_at(), ts);
-        assert_eq!(cycle.updated_at(), ts);
+    }
+
+    // 기존 테스트: 빈 name → 에러
+    #[test]
+    fn test_cycle_new_empty_name() {
+        assert!(Cycle::new("ws1", "", "2026-05-01", "2026-05-14", now()).is_err());
+    }
+
+    // 기존 테스트: start_date > end_date → 에러
+    #[test]
+    fn test_cycle_new_start_after_end() {
+        assert!(Cycle::new("ws1", "Sprint 1", "2026-05-15", "2026-05-01", now()).is_err());
     }
 }
