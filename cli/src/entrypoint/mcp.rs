@@ -465,10 +465,11 @@ impl SeogiMcpServer {
                 &params.end_date,
             ) {
                 Ok(cycle) => {
+                    let today = chrono::Utc::now().date_naive();
                     let json = serde_json::json!({
                         "id": cycle.id(),
                         "name": cycle.name(),
-                        "status": cycle.status().as_str(),
+                        "status": cycle.status(today).as_str(),
                         "start_date": cycle.start_date(),
                         "end_date": cycle.end_date(),
                     });

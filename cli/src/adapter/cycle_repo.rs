@@ -2,10 +2,9 @@ use chrono::Utc;
 use rusqlite::Connection;
 
 use super::mapper::cycle_from_row;
-use crate::domain::cycle::Cycle;
+use crate::domain::cycle::{self, Cycle};
 
-const CYCLE_COLUMNS: &str =
-    "id, workspace_id, name, status, start_date, end_date, created_at, updated_at";
+const CYCLE_COLUMNS: &str = "id, workspace_id, name, start_date, end_date, created_at, updated_at";
 
 /// Cycle을 DB에 저장한다.
 ///
@@ -14,12 +13,11 @@ const CYCLE_COLUMNS: &str =
 /// INSERT 실패 시 `rusqlite::Error`.
 pub fn save(conn: &Connection, cycle: &Cycle) -> rusqlite::Result<()> {
     conn.execute(
-        "INSERT INTO cycles (id, workspace_id, name, status, start_date, end_date, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO cycles (id, workspace_id, name, start_date, end_date, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         (
             cycle.id(),
             cycle.workspace_id(),
             cycle.name(),
-            cycle.status().as_str(),
             cycle.start_date(),
             cycle.end_date(),
             cycle.created_at().to_rfc3339(),
@@ -109,7 +107,41 @@ pub fn update(
     conn.execute(&sql, param_refs.as_slice())
 }
 
-/// Cycle 조회 결과에 워크스페이스 이름을 포함한 구조체.
+/// 같은 워크스페이스 내에서 날짜 구간이 겹치는 Cycle을 조회한다.
+///
+/// `exclude_id`가 `Some`이면 해당 ID의 Cycle은 제외한다 (update 시 자기 자신 제외).
+///
+/// # Errors
+///
+/// SELECT 실패 시 `rusqlite::Error`.
+pub fn list_by_workspace_overlapping(
+    conn: &Connection,
+    workspace_id: &str,
+    start_date: &str,
+    end_date: &str,
+    exclude_id: Option<&str>,
+) -> rusqlite::Result<Vec<Cycle>> {
+    let mut sql = format!(
+        "SELECT {CYCLE_COLUMNS} FROM cycles WHERE workspace_id = ?1 AND start_date <= ?3 AND end_date >= ?2"
+    );
+    let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = vec![
+        Box::new(workspace_id.to_string()),
+        Box::new(start_date.to_string()),
+        Box::new(end_date.to_string()),
+    ];
+
+    if let Some(eid) = exclude_id {
+        sql.push_str(" AND id != ?4");
+        params.push(Box::new(eid.to_string()));
+    }
+
+    let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(AsRef::as_ref).collect();
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(param_refs.as_slice(), cycle_from_row)?;
+    rows.collect()
+}
+
+/// Cycle 조회 결과에 워크스페이스 이름과 파생 status를 포함한 구조체.
 #[derive(Debug, serde::Serialize)]
 pub struct CycleListRow {
     pub id: String,
@@ -131,7 +163,7 @@ pub fn list_detailed(
     conn: &Connection,
     workspace_name: Option<&str>,
 ) -> rusqlite::Result<Vec<CycleListRow>> {
-    let mut sql = "SELECT c.id, w.name AS workspace_name, c.name, c.status, c.start_date, c.end_date, c.created_at, c.updated_at FROM cycles c JOIN workspaces w ON c.workspace_id = w.id".to_string();
+    let mut sql = "SELECT c.id, w.name AS workspace_name, c.name, c.start_date, c.end_date, c.created_at, c.updated_at FROM cycles c JOIN workspaces w ON c.workspace_id = w.id".to_string();
     let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
     if let Some(ws) = workspace_name {
@@ -144,14 +176,20 @@ pub fn list_detailed(
     let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(AsRef::as_ref).collect();
 
     let mut stmt = conn.prepare(&sql)?;
+    let today = Utc::now().date_naive();
     let rows = stmt.query_map(param_refs.as_slice(), |row| {
+        let start_date: String = row.get("start_date")?;
+        let end_date: String = row.get("end_date")?;
+        let status = cycle::derive_status(&start_date, &end_date, today)
+            .as_str()
+            .to_string();
         Ok(CycleListRow {
             id: row.get("id")?,
             workspace_name: row.get("workspace_name")?,
             name: row.get("name")?,
-            status: row.get("status")?,
-            start_date: row.get("start_date")?,
-            end_date: row.get("end_date")?,
+            status,
+            start_date,
+            end_date,
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
         })
@@ -164,7 +202,6 @@ mod tests {
     use super::*;
     use crate::adapter::db::initialize_in_memory;
     use crate::adapter::workspace_repo;
-    use crate::domain::cycle::CycleStatus;
     use crate::domain::workspace::Workspace;
     use crate::domain::workspace::WorkspacePrefix;
 
@@ -186,9 +223,9 @@ mod tests {
         .unwrap()
     }
 
-    // Q11: save 후 DB에서 조회 시 필드 일치
+    // Q12: save 후 DB에 status 컬럼 없이 저장 확인
     #[test]
-    fn test_save_and_find() {
+    fn test_save_without_status() {
         let conn = initialize_in_memory().unwrap();
         let ws = sample_workspace(&conn);
         let cycle = sample_cycle(ws.id());
@@ -196,14 +233,66 @@ mod tests {
 
         let found = find_by_id(&conn, cycle.id()).unwrap().unwrap();
         assert_eq!(found.id(), cycle.id());
-        assert_eq!(found.workspace_id(), ws.id());
         assert_eq!(found.name(), "Sprint 1");
-        assert_eq!(found.status(), CycleStatus::Planned);
         assert_eq!(found.start_date(), "2026-05-01");
         assert_eq!(found.end_date(), "2026-05-14");
     }
 
-    // Q12: list_by_workspace 해당 워크스페이스만 반환, created_at DESC 정렬
+    // Q13: find_by_id status 없이 Cycle 복원
+    #[test]
+    fn test_find_by_id_without_status() {
+        let conn = initialize_in_memory().unwrap();
+        let ws = sample_workspace(&conn);
+        let cycle = sample_cycle(ws.id());
+        save(&conn, &cycle).unwrap();
+
+        let found = find_by_id(&conn, cycle.id()).unwrap().unwrap();
+        assert_eq!(found.workspace_id(), ws.id());
+    }
+
+    // Q14: list_by_workspace_overlapping 겹치는 Cycle 반환
+    #[test]
+    fn test_list_overlapping_found() {
+        let conn = initialize_in_memory().unwrap();
+        let ws = sample_workspace(&conn);
+        let c = Cycle::new(ws.id(), "Sprint 1", "2026-05-01", "2026-05-14", Utc::now()).unwrap();
+        save(&conn, &c).unwrap();
+
+        let result =
+            list_by_workspace_overlapping(&conn, ws.id(), "2026-05-10", "2026-05-20", None)
+                .unwrap();
+        assert_eq!(result.len(), 1);
+    }
+
+    // Q15: list_by_workspace_overlapping 겹치지 않으면 빈 Vec
+    #[test]
+    fn test_list_overlapping_not_found() {
+        let conn = initialize_in_memory().unwrap();
+        let ws = sample_workspace(&conn);
+        let c = Cycle::new(ws.id(), "Sprint 1", "2026-05-01", "2026-05-14", Utc::now()).unwrap();
+        save(&conn, &c).unwrap();
+
+        let result =
+            list_by_workspace_overlapping(&conn, ws.id(), "2026-05-15", "2026-05-28", None)
+                .unwrap();
+        assert!(result.is_empty());
+    }
+
+    // Q16: list_by_workspace_overlapping 자기 자신 제외
+    #[test]
+    fn test_list_overlapping_exclude_self() {
+        let conn = initialize_in_memory().unwrap();
+        let ws = sample_workspace(&conn);
+        let c = Cycle::new(ws.id(), "Sprint 1", "2026-05-01", "2026-05-14", Utc::now()).unwrap();
+        save(&conn, &c).unwrap();
+
+        let result =
+            list_by_workspace_overlapping(&conn, ws.id(), "2026-05-01", "2026-05-14", Some(c.id()))
+                .unwrap();
+        assert!(result.is_empty());
+    }
+
+    // 기존 테스트 유지
     #[test]
     fn test_list_by_workspace() {
         let conn = initialize_in_memory().unwrap();
@@ -223,7 +312,6 @@ mod tests {
         assert_eq!(result[0].name(), "Sprint 1");
     }
 
-    // Q13: list_all 전체 반환
     #[test]
     fn test_list_all() {
         let conn = initialize_in_memory().unwrap();
@@ -238,19 +326,6 @@ mod tests {
         assert_eq!(result.len(), 2);
     }
 
-    // Q14: find_by_id 존재하는 ID → Some(Cycle)
-    #[test]
-    fn test_find_by_id_found() {
-        let conn = initialize_in_memory().unwrap();
-        let ws = sample_workspace(&conn);
-        let cycle = sample_cycle(ws.id());
-        save(&conn, &cycle).unwrap();
-
-        let found = find_by_id(&conn, cycle.id()).unwrap();
-        assert!(found.is_some());
-    }
-
-    // Q15: find_by_id 없는 ID → None
     #[test]
     fn test_find_by_id_not_found() {
         let conn = initialize_in_memory().unwrap();
@@ -258,7 +333,6 @@ mod tests {
         assert!(found.is_none());
     }
 
-    // Q16: update 이름 변경 시 DB 반영
     #[test]
     fn test_update_name() {
         let conn = initialize_in_memory().unwrap();
@@ -273,7 +347,6 @@ mod tests {
         assert_eq!(found.name(), "Updated");
     }
 
-    // Q17: update 시작일/종료일 변경 시 DB 반영
     #[test]
     fn test_update_dates() {
         let conn = initialize_in_memory().unwrap();

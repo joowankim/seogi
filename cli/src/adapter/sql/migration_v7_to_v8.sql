@@ -2,7 +2,6 @@ CREATE TABLE IF NOT EXISTS cycles (
     id           TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL REFERENCES workspaces(id),
     name         TEXT NOT NULL,
-    status       TEXT NOT NULL,
     start_date   TEXT NOT NULL,
     end_date     TEXT NOT NULL,
     created_at   TEXT NOT NULL,
