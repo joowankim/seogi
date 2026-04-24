@@ -158,7 +158,7 @@ fn tools_list_returns_all_registered_tools() {
 
     let response = session.list_tools();
     let tools = response["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 16);
+    assert_eq!(tools.len(), 18);
 
     session.shutdown();
 }
@@ -236,6 +236,10 @@ fn tools_list_schema_has_correct_required_fields() {
                 assert!(!required_strs.contains(&"name"));
                 assert!(!required_strs.contains(&"start_date"));
                 assert!(!required_strs.contains(&"end_date"));
+            }
+            "cycle_assign" | "cycle_unassign" => {
+                assert!(required_strs.contains(&"cycle_id"));
+                assert!(required_strs.contains(&"task_id"));
             }
             _ => panic!("unexpected tool: {name}"),
         }
@@ -1280,6 +1284,105 @@ fn mcp_cycle_list_derived_status() {
     let text = extract_text(&response);
     let data: Vec<serde_json::Value> = serde_json::from_str(text).unwrap();
     assert_eq!(data[0]["status"], "planned");
+
+    session.shutdown();
+}
+
+// ── Q30: MCP cycle_assign 성공 ──
+
+#[test]
+fn mcp_cycle_assign_success() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let mut session = McpSession::new(&db_path);
+
+    session.call(
+        "workspace_create",
+        serde_json::json!({"name": "Seogi", "prefix": "SEO", "goal": "harness"}),
+    );
+    let create_response = session.call(
+        "cycle_create",
+        serde_json::json!({
+            "workspace": "Seogi",
+            "name": "Sprint 1",
+            "start_date": "2026-05-01",
+            "end_date": "2026-05-14"
+        }),
+    );
+    let create_text = extract_text(&create_response);
+    let create_data: serde_json::Value = serde_json::from_str(create_text).unwrap();
+    let cycle_id = create_data["id"].as_str().unwrap();
+
+    session.call(
+        "task_create",
+        serde_json::json!({
+            "workspace": "Seogi",
+            "title": "Task 1",
+            "description": "desc",
+            "label": "feature"
+        }),
+    );
+
+    let response = session.call(
+        "cycle_assign",
+        serde_json::json!({"cycle_id": cycle_id, "task_id": "SEO-1"}),
+    );
+
+    assert!(!is_error(&response));
+    let text = extract_text(&response);
+    assert!(text.contains("Assigned"));
+
+    session.shutdown();
+}
+
+// ── Q31: MCP cycle_unassign 성공 ──
+
+#[test]
+fn mcp_cycle_unassign_success() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let mut session = McpSession::new(&db_path);
+
+    session.call(
+        "workspace_create",
+        serde_json::json!({"name": "Seogi", "prefix": "SEO", "goal": "harness"}),
+    );
+    let create_response = session.call(
+        "cycle_create",
+        serde_json::json!({
+            "workspace": "Seogi",
+            "name": "Sprint 1",
+            "start_date": "2026-05-01",
+            "end_date": "2026-05-14"
+        }),
+    );
+    let create_text = extract_text(&create_response);
+    let create_data: serde_json::Value = serde_json::from_str(create_text).unwrap();
+    let cycle_id = create_data["id"].as_str().unwrap();
+
+    session.call(
+        "task_create",
+        serde_json::json!({
+            "workspace": "Seogi",
+            "title": "Task 1",
+            "description": "desc",
+            "label": "feature"
+        }),
+    );
+
+    session.call(
+        "cycle_assign",
+        serde_json::json!({"cycle_id": cycle_id, "task_id": "SEO-1"}),
+    );
+
+    let response = session.call(
+        "cycle_unassign",
+        serde_json::json!({"cycle_id": cycle_id, "task_id": "SEO-1"}),
+    );
+
+    assert!(!is_error(&response));
+    let text = extract_text(&response);
+    assert!(text.contains("Unassigned"));
 
     session.shutdown();
 }

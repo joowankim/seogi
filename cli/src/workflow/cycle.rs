@@ -1,8 +1,9 @@
 use chrono::Utc;
 use rusqlite::Connection;
 
-use crate::adapter::{cycle_repo, workspace_repo};
-use crate::domain::cycle::{self, Cycle};
+use crate::adapter::task_repo;
+use crate::adapter::{cycle_repo, cycle_task_repo, workspace_repo};
+use crate::domain::cycle::{self, Assigned, Cycle};
 use crate::domain::error::DomainError;
 
 /// Cycle을 생성한다.
@@ -101,6 +102,44 @@ pub fn update(
     Ok(())
 }
 
+/// Cycle에 태스크를 명시적으로 배정한다.
+///
+/// # Errors
+///
+/// - Cycle 미존재, 태스크 미존재, 중복 배정 → `DomainError::Validation`
+/// - DB 에러 → `DomainError::Database`
+pub fn assign(conn: &Connection, cycle_id: &str, task_id: &str) -> Result<(), DomainError> {
+    cycle_repo::find_by_id(conn, cycle_id)?
+        .ok_or_else(|| DomainError::Validation(format!("Cycle \"{cycle_id}\" not found")))?;
+    task_repo::find_by_id(conn, task_id)?
+        .ok_or_else(|| DomainError::Validation(format!("Task \"{task_id}\" not found")))?;
+
+    if cycle_task_repo::is_assigned_to_cycle(conn, cycle_id, task_id)? {
+        return Err(DomainError::Validation(format!(
+            "Task \"{task_id}\" is already assigned to cycle \"{cycle_id}\""
+        )));
+    }
+
+    cycle_task_repo::save(conn, cycle_id, task_id, Assigned::Planned)?;
+    Ok(())
+}
+
+/// Cycle에서 태스크 배정을 해제한다.
+///
+/// # Errors
+///
+/// - 미배정 → `DomainError::Validation`
+/// - DB 에러 → `DomainError::Database`
+pub fn unassign(conn: &Connection, cycle_id: &str, task_id: &str) -> Result<(), DomainError> {
+    let deleted = cycle_task_repo::delete(conn, cycle_id, task_id)?;
+    if !deleted {
+        return Err(DomainError::Validation(format!(
+            "Task \"{task_id}\" is not assigned to cycle \"{cycle_id}\""
+        )));
+    }
+    Ok(())
+}
+
 fn check_overlap(
     conn: &Connection,
     workspace_id: &str,
@@ -131,6 +170,86 @@ mod tests {
 
     fn setup_workspace(conn: &Connection) {
         crate::workflow::workspace::create(conn, "Seogi", Some("SEO"), "하니스 계측").unwrap();
+    }
+
+    fn setup_task(conn: &Connection) -> String {
+        let task =
+            crate::workflow::task::create(conn, "Seogi", "Task 1", "desc", "feature").unwrap();
+        task.id().to_string()
+    }
+
+    // Q15: assign 성공
+    #[test]
+    fn test_assign_success() {
+        let conn = initialize_in_memory().unwrap();
+        setup_workspace(&conn);
+        let cycle = create(&conn, "Seogi", "Sprint 1", "2026-05-01", "2026-05-14").unwrap();
+        let task_id = setup_task(&conn);
+
+        assign(&conn, cycle.id(), &task_id).unwrap();
+
+        assert!(cycle_task_repo::is_assigned_to_cycle(&conn, cycle.id(), &task_id).unwrap());
+    }
+
+    // Q16: assign 존재하지 않는 cycle_id → 에러
+    #[test]
+    fn test_assign_cycle_not_found() {
+        let conn = initialize_in_memory().unwrap();
+        setup_workspace(&conn);
+        let task_id = setup_task(&conn);
+
+        let result = assign(&conn, "nonexistent", &task_id);
+        assert!(result.is_err());
+    }
+
+    // Q17: assign 존재하지 않는 task_id → 에러
+    #[test]
+    fn test_assign_task_not_found() {
+        let conn = initialize_in_memory().unwrap();
+        setup_workspace(&conn);
+        let cycle = create(&conn, "Seogi", "Sprint 1", "2026-05-01", "2026-05-14").unwrap();
+
+        let result = assign(&conn, cycle.id(), "SEO-999");
+        assert!(result.is_err());
+    }
+
+    // Q18: assign 중복 배정 → 에러
+    #[test]
+    fn test_assign_duplicate() {
+        let conn = initialize_in_memory().unwrap();
+        setup_workspace(&conn);
+        let cycle = create(&conn, "Seogi", "Sprint 1", "2026-05-01", "2026-05-14").unwrap();
+        let task_id = setup_task(&conn);
+
+        assign(&conn, cycle.id(), &task_id).unwrap();
+        let result = assign(&conn, cycle.id(), &task_id);
+        assert!(result.is_err());
+    }
+
+    // Q19: unassign 성공
+    #[test]
+    fn test_unassign_success() {
+        let conn = initialize_in_memory().unwrap();
+        setup_workspace(&conn);
+        let cycle = create(&conn, "Seogi", "Sprint 1", "2026-05-01", "2026-05-14").unwrap();
+        let task_id = setup_task(&conn);
+
+        assign(&conn, cycle.id(), &task_id).unwrap();
+        unassign(&conn, cycle.id(), &task_id).unwrap();
+
+        assert!(!cycle_task_repo::is_assigned_to_cycle(&conn, cycle.id(), &task_id).unwrap());
+    }
+
+    // Q20: unassign 미배정 → 에러
+    #[test]
+    fn test_unassign_not_found() {
+        let conn = initialize_in_memory().unwrap();
+        setup_workspace(&conn);
+        let cycle = create(&conn, "Seogi", "Sprint 1", "2026-05-01", "2026-05-14").unwrap();
+        let task_id = setup_task(&conn);
+
+        let result = unassign(&conn, cycle.id(), &task_id);
+        assert!(result.is_err());
     }
 
     // Q18: create 겹침 없으면 성공

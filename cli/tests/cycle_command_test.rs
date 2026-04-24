@@ -386,3 +386,144 @@ fn test_cycle_list_derived_status_cli() {
     let arr = parsed.as_array().unwrap();
     assert_eq!(arr[0]["status"], "planned");
 }
+
+// Q27: seogi cycle assign 성공
+#[test]
+fn test_cycle_assign_cli() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    setup_workspace(db);
+
+    run_seogi(
+        &[
+            "cycle",
+            "create",
+            "--workspace",
+            "Seogi",
+            "--name",
+            "Sprint 1",
+            "--start",
+            "2026-05-01",
+            "--end",
+            "2026-05-14",
+        ],
+        db,
+    );
+    run_seogi(
+        &[
+            "task",
+            "create",
+            "--workspace",
+            "Seogi",
+            "--title",
+            "Task 1",
+            "--description",
+            "desc",
+            "--label",
+            "feature",
+        ],
+        db,
+    );
+
+    let conn = Connection::open(&db_path).unwrap();
+    let cycle_id: String = conn
+        .query_row("SELECT id FROM cycles LIMIT 1", [], |r| r.get(0))
+        .unwrap();
+
+    let output = run_seogi(&["cycle", "assign", &cycle_id, "SEO-1"], db);
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("Assigned"), "stdout: {stdout}");
+}
+
+// Q28: seogi cycle assign 존재하지 않는 cycle → 에러
+#[test]
+fn test_cycle_assign_cli_not_found() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    setup_workspace(db);
+    run_seogi(
+        &[
+            "task",
+            "create",
+            "--workspace",
+            "Seogi",
+            "--title",
+            "Task 1",
+            "--description",
+            "desc",
+            "--label",
+            "feature",
+        ],
+        db,
+    );
+
+    let output = run_seogi(&["cycle", "assign", "nonexistent", "SEO-1"], db);
+    assert!(!output.status.success());
+}
+
+// Q29: seogi cycle unassign 성공
+#[test]
+fn test_cycle_unassign_cli() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("seogi.db");
+    let db = db_path.to_str().unwrap();
+
+    setup_workspace(db);
+
+    run_seogi(
+        &[
+            "cycle",
+            "create",
+            "--workspace",
+            "Seogi",
+            "--name",
+            "Sprint 1",
+            "--start",
+            "2026-05-01",
+            "--end",
+            "2026-05-14",
+        ],
+        db,
+    );
+    run_seogi(
+        &[
+            "task",
+            "create",
+            "--workspace",
+            "Seogi",
+            "--title",
+            "Task 1",
+            "--description",
+            "desc",
+            "--label",
+            "feature",
+        ],
+        db,
+    );
+
+    let conn = Connection::open(&db_path).unwrap();
+    let cycle_id: String = conn
+        .query_row("SELECT id FROM cycles LIMIT 1", [], |r| r.get(0))
+        .unwrap();
+
+    run_seogi(&["cycle", "assign", &cycle_id, "SEO-1"], db);
+    let output = run_seogi(&["cycle", "unassign", &cycle_id, "SEO-1"], db);
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("Unassigned"), "stdout: {stdout}");
+}

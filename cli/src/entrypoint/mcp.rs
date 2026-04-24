@@ -117,6 +117,12 @@ struct CycleUpdateParams {
     end_date: Option<String>,
 }
 
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct CycleAssignParams {
+    cycle_id: String,
+    task_id: String,
+}
+
 // ── Tool implementations ──
 
 fn success_text(text: String) -> CallToolResult {
@@ -521,6 +527,46 @@ impl SeogiMcpServer {
                 params.end_date.as_deref(),
             ) {
                 Ok(()) => success_text(format!("Updated cycle {}", params.cycle_id)),
+                Err(e) => error_text(format!("{e}")),
+            }
+        })
+        .await
+        .expect("spawn_blocking panicked")
+    }
+
+    #[tool(name = "cycle_assign", description = "Assign a task to a cycle")]
+    async fn cycle_assign(
+        &self,
+        Parameters(params): Parameters<CycleAssignParams>,
+    ) -> CallToolResult {
+        let conn = Arc::clone(&self.conn);
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().expect("db lock poisoned");
+            match workflow::cycle::assign(&conn, &params.cycle_id, &params.task_id) {
+                Ok(()) => success_text(format!(
+                    "Assigned task {} to cycle {}",
+                    params.task_id, params.cycle_id
+                )),
+                Err(e) => error_text(format!("{e}")),
+            }
+        })
+        .await
+        .expect("spawn_blocking panicked")
+    }
+
+    #[tool(name = "cycle_unassign", description = "Remove a task from a cycle")]
+    async fn cycle_unassign(
+        &self,
+        Parameters(params): Parameters<CycleAssignParams>,
+    ) -> CallToolResult {
+        let conn = Arc::clone(&self.conn);
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().expect("db lock poisoned");
+            match workflow::cycle::unassign(&conn, &params.cycle_id, &params.task_id) {
+                Ok(()) => success_text(format!(
+                    "Unassigned task {} from cycle {}",
+                    params.task_id, params.cycle_id
+                )),
                 Err(e) => error_text(format!("{e}")),
             }
         })
