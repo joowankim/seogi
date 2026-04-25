@@ -37,10 +37,10 @@ bash 훅에서 Rust CLI로 전환을 완료한다. install.sh가 `seogi hook <na
 - 훅은 exit 0으로 종료 (세션 계속)
 
 ### E. 레거시 Rust 코드 정리
-- `cli/src/commands/` (analyze.rs, changelog.rs, report.rs) — JSONL 기반 코드 제거
-- `cli/src/log_reader.rs`, `cli/src/metrics_reader.rs`, `cli/src/models.rs` — migrate에서만 사용하므로 유지 또는 정리
-- `cli/src/analyzers/session_summary.rs` — JSONL 기반, 제거 대상
-- `cli/src/config.rs` — migrate에서만 사용, 유지
+- `app/src/commands/` (analyze.rs, changelog.rs, report.rs) — JSONL 기반 코드 제거
+- `app/src/log_reader.rs`, `app/src/metrics_reader.rs`, `app/src/models.rs` — migrate에서만 사용하므로 유지 또는 정리
+- `app/src/analyzers/session_summary.rs` — JSONL 기반, 제거 대상
+- `app/src/config.rs` — migrate에서만 사용, 유지
 
 ---
 

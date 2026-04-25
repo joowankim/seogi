@@ -82,7 +82,7 @@ QA 항목은 테스트 코드로 직접 변환할 수 있을 만큼 **구체적*
 
 기획된 QA 목록을 기반으로 E2E 테스트를 먼저 작성한다. 구현이 없으므로 모두 실패한다.
 
-**위치:** `cli/tests/feature_XX_test.rs`
+**위치:** `app/tests/feature_XX_test.rs`
 
 **환경 격리:**
 - `tempfile::tempdir()`로 임시 디렉토리

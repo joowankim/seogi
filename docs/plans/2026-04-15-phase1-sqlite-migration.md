@@ -39,7 +39,7 @@ thiserror = "1"                                          # 신규 (도메인 에
 ## 코드 구조 (DDD + ROP)
 
 ```
-cli/
+app/
 ├── src/
 │   ├── main.rs                        # 진입점 (clap 파싱)
 │   ├── lib.rs                         # 모듈 선언
@@ -68,7 +68,7 @@ cli/
 │   │   └── changelog.rs
 │   └── entrypoint/                    # 외부 인터페이스
 │       ├── mod.rs
-│       ├── cli/                       # CLI 명령어
+│       ├── app/                       # CLI 명령어
 │       │   ├── mod.rs
 │       │   ├── analyze.rs
 │       │   ├── report.rs
@@ -196,7 +196,7 @@ cli/
 - `domain/metrics.rs`: `SessionMetrics` 타입 + `calculate` 순수 함수
 - `adapter/metrics_repo.rs`: `save`, `find_latest` 함수
 - `workflow/analyze.rs`: 샌드위치 (load → calculate → save)
-- `entrypoint/cli/analyze.rs`: `seogi analyze <project> <session_id>`
+- `entrypoint/app/analyze.rs`: `seogi analyze <project> <session_id>`
 
 **테스트:**
 - `metrics::calculate` 순수 함수 단위 테스트 (입력 → 출력)
@@ -215,7 +215,7 @@ cli/
 **수직 슬라이스:**
 - `adapter/jsonl_reader.rs`: 기존 JSONL 파서 (pretty-printed + compact)
 - `workflow/migrate.rs`: JSONL 읽기 → 도메인 타입 변환 → adapter 함수로 저장
-- `entrypoint/cli/migrate.rs`: `seogi migrate`
+- `entrypoint/app/migrate.rs`: `seogi migrate`
 
 **테스트:**
 - 샘플 JSONL 디렉토리 → DB 변환
@@ -233,7 +233,7 @@ cli/
 - `domain/metrics.rs`: 통계 집계 순수 함수 (`aggregate`)
 - `adapter/metrics_repo.rs`: `list_by_range` 함수
 - `workflow/report.rs`: 샌드위치 (load → aggregate → print 포매팅)
-- `entrypoint/cli/report.rs`: `seogi report --from --to --project`
+- `entrypoint/app/report.rs`: `seogi report --from --to --project`
 
 **테스트:**
 - 알려진 데이터셋으로 통계 계산 정확성 (순수 함수 단위 테스트)
@@ -250,7 +250,7 @@ cli/
 - `domain/changelog.rs`: `ChangelogEntry` 타입
 - `adapter/changelog_repo.rs`: `save` 함수
 - `workflow/changelog.rs`: 이력 추가 workflow
-- `entrypoint/cli/changelog.rs`
+- `entrypoint/app/changelog.rs`
 
 **테스트:**
 - 단순 추가 케이스

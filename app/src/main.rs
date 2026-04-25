@@ -322,10 +322,15 @@ fn main() -> Result<()> {
             let conn = open_db()?;
             match action {
                 WorkspaceAction::Create { name, prefix, goal } => {
-                    seogi::entrypoint::workspace::create(&conn, &name, prefix.as_deref(), &goal)?;
+                    seogi::entrypoint::cli::workspace::create(
+                        &conn,
+                        &name,
+                        prefix.as_deref(),
+                        &goal,
+                    )?;
                 }
                 WorkspaceAction::List { json } => {
-                    seogi::entrypoint::workspace::list(&conn, json)?;
+                    seogi::entrypoint::cli::workspace::list(&conn, json)?;
                 }
             }
         }
@@ -338,10 +343,10 @@ fn main() -> Result<()> {
                     start,
                     end,
                 } => {
-                    seogi::entrypoint::cycle::create(&conn, &workspace, &name, &start, &end)?;
+                    seogi::entrypoint::cli::cycle::create(&conn, &workspace, &name, &start, &end)?;
                 }
                 CycleAction::List { workspace, json } => {
-                    seogi::entrypoint::cycle::list(&conn, workspace.as_deref(), json)?;
+                    seogi::entrypoint::cli::cycle::list(&conn, workspace.as_deref(), json)?;
                 }
                 CycleAction::Update {
                     cycle_id,
@@ -349,7 +354,7 @@ fn main() -> Result<()> {
                     start,
                     end,
                 } => {
-                    seogi::entrypoint::cycle::update(
+                    seogi::entrypoint::cli::cycle::update(
                         &conn,
                         &cycle_id,
                         name.as_deref(),
@@ -358,13 +363,13 @@ fn main() -> Result<()> {
                     )?;
                 }
                 CycleAction::Assign { cycle_id, task_id } => {
-                    seogi::entrypoint::cycle::assign(&conn, &cycle_id, &task_id)?;
+                    seogi::entrypoint::cli::cycle::assign(&conn, &cycle_id, &task_id)?;
                 }
                 CycleAction::Unassign { cycle_id, task_id } => {
-                    seogi::entrypoint::cycle::unassign(&conn, &cycle_id, &task_id)?;
+                    seogi::entrypoint::cli::cycle::unassign(&conn, &cycle_id, &task_id)?;
                 }
                 CycleAction::Report { cycle_id } => {
-                    seogi::entrypoint::cycle::report(&conn, &cycle_id)?;
+                    seogi::entrypoint::cli::cycle::report(&conn, &cycle_id)?;
                 }
             }
         }
@@ -372,16 +377,16 @@ fn main() -> Result<()> {
             let conn = open_db()?;
             match action {
                 StatusAction::Create { category, name } => {
-                    seogi::entrypoint::status::create(&conn, &category, &name)?;
+                    seogi::entrypoint::cli::status::create(&conn, &category, &name)?;
                 }
                 StatusAction::List { json } => {
-                    seogi::entrypoint::status::list(&conn, json)?;
+                    seogi::entrypoint::cli::status::list(&conn, json)?;
                 }
                 StatusAction::Update { id, name } => {
-                    seogi::entrypoint::status::update(&conn, &id, &name)?;
+                    seogi::entrypoint::cli::status::update(&conn, &id, &name)?;
                 }
                 StatusAction::Delete { id } => {
-                    seogi::entrypoint::status::delete(&conn, &id)?;
+                    seogi::entrypoint::cli::status::delete(&conn, &id)?;
                 }
             }
         }
@@ -395,7 +400,7 @@ fn main() -> Result<()> {
                     label,
                     depends_on,
                 } => {
-                    seogi::entrypoint::task::create(
+                    seogi::entrypoint::cli::task::create(
                         &conn,
                         &workspace,
                         &title,
@@ -410,7 +415,7 @@ fn main() -> Result<()> {
                     label,
                     json,
                 } => {
-                    seogi::entrypoint::task::list(
+                    seogi::entrypoint::cli::task::list(
                         &conn,
                         workspace.as_deref(),
                         status.as_deref(),
@@ -419,7 +424,7 @@ fn main() -> Result<()> {
                     )?;
                 }
                 TaskAction::Get { task_id, json } => {
-                    seogi::entrypoint::task::get(&conn, &task_id, json)?;
+                    seogi::entrypoint::cli::task::get(&conn, &task_id, json)?;
                 }
                 TaskAction::Update {
                     task_id,
@@ -427,7 +432,7 @@ fn main() -> Result<()> {
                     description,
                     label,
                 } => {
-                    seogi::entrypoint::task::update(
+                    seogi::entrypoint::cli::task::update(
                         &conn,
                         &task_id,
                         title.as_deref(),
@@ -436,13 +441,13 @@ fn main() -> Result<()> {
                     )?;
                 }
                 TaskAction::Depend { task_id, on } => {
-                    seogi::entrypoint::task::depend(&conn, &task_id, &on)?;
+                    seogi::entrypoint::cli::task::depend(&conn, &task_id, &on)?;
                 }
                 TaskAction::Undepend { task_id, on } => {
-                    seogi::entrypoint::task::undepend(&conn, &task_id, &on)?;
+                    seogi::entrypoint::cli::task::undepend(&conn, &task_id, &on)?;
                 }
                 TaskAction::Move { task_id, status } => {
-                    seogi::entrypoint::task::move_task(&conn, &task_id, &status)?;
+                    seogi::entrypoint::cli::task::move_task(&conn, &task_id, &status)?;
                 }
             }
         }

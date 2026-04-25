@@ -151,7 +151,7 @@ domain/metrics.rs           calculate 순수 함수 + SessionMetrics 타입 [신
     ↓
 workflow/analyze.rs          Impureim Sandwich: load → calculate → output [신규]
     ↓
-entrypoint/cli/analyze.rs    seogi analyze <session_id> [신규]
+entrypoint/app/analyze.rs    seogi analyze <session_id> [신규]
     ↓
 main.rs                      Analyze 서브커맨드 연결 변경 [수정]
 ```
@@ -162,7 +162,7 @@ main.rs                      Analyze 서브커맨드 연결 변경 [수정]
 |------|------|
 | `domain/metrics.rs` | `SessionMetrics` 타입 + `calculate(tool_uses, tool_failures) -> SessionMetrics` |
 | `workflow/analyze.rs` (신규) | `run(conn, session_id) -> Result<SessionMetrics>` |
-| `entrypoint/cli/analyze.rs` | CLI 진입점 |
+| `entrypoint/app/analyze.rs` | CLI 진입점 |
 
 ### 기존 파일 변경
 

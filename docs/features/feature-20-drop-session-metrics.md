@@ -44,29 +44,29 @@
 
 | 파일 | 이유 |
 |------|------|
-| `cli/src/workflow/analyze.rs` | analyze 워크플로우 전체 |
-| `cli/src/workflow/report.rs` | 세션 기반 report 워크플로우 |
-| `cli/src/domain/report.rs` | 세션 기반 report 도메인 (Stats, format_report 등) |
-| `cli/tests/analyze_command_test.rs` | analyze E2E 테스트 |
-| `cli/tests/report_command_test.rs` | report E2E 테스트 |
+| `app/src/workflow/analyze.rs` | analyze 워크플로우 전체 |
+| `app/src/workflow/report.rs` | 세션 기반 report 워크플로우 |
+| `app/src/domain/report.rs` | 세션 기반 report 도메인 (Stats, format_report 등) |
+| `app/tests/analyze_command_test.rs` | analyze E2E 테스트 |
+| `app/tests/report_command_test.rs` | report E2E 테스트 |
 
 ### 파일 수정 (5개)
 
 | 파일 | 변경 내용 |
 |------|-----------|
-| `cli/src/adapter/sql/schema.sql` | `session_metrics` 테이블 정의 제거 + `DROP TABLE IF EXISTS session_metrics` 추가 |
-| `cli/src/main.rs` | `Analyze`, `Report` 서브커맨드 및 핸들러 제거 |
-| `cli/src/domain/metrics.rs` | `SessionMetrics` 구조체 삭제 (calculate 함수 및 calc_* 함수 유지) |
-| `cli/src/adapter/log_repo.rs` | `list_session_ids_by_range` 함수 및 관련 테스트 삭제 |
-| `cli/src/adapter/db.rs` | `EXPECTED_TABLES`에서 `session_metrics` 제거 (9→8), `test_schema_columns_session_metrics` 테스트 삭제 |
+| `app/src/adapter/sql/schema.sql` | `session_metrics` 테이블 정의 제거 + `DROP TABLE IF EXISTS session_metrics` 추가 |
+| `app/src/main.rs` | `Analyze`, `Report` 서브커맨드 및 핸들러 제거 |
+| `app/src/domain/metrics.rs` | `SessionMetrics` 구조체 삭제 (calculate 함수 및 calc_* 함수 유지) |
+| `app/src/adapter/log_repo.rs` | `list_session_ids_by_range` 함수 및 관련 테스트 삭제 |
+| `app/src/adapter/db.rs` | `EXPECTED_TABLES`에서 `session_metrics` 제거 (9→8), `test_schema_columns_session_metrics` 테스트 삭제 |
 
 ### 모듈 선언 제거
 
 | 파일 | 변경 |
 |------|------|
-| `cli/src/workflow/mod.rs` | `pub mod analyze;` 제거 |
-| `cli/src/workflow/mod.rs` | `pub mod report;` 제거 |
-| `cli/src/domain/mod.rs` | `pub mod report;` 제거 |
+| `app/src/workflow/mod.rs` | `pub mod analyze;` 제거 |
+| `app/src/workflow/mod.rs` | `pub mod report;` 제거 |
+| `app/src/domain/mod.rs` | `pub mod report;` 제거 |
 
 ---
 

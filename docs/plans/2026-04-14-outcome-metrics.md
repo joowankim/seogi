@@ -129,7 +129,7 @@ seogi analyze <project> <session_id> [--transcript <path>] [--start-sha <sha>]
 ### Step 2: transcript 파서 구현
 
 구현:
-- `cli/src/transcript_reader.rs` — transcript JSONL에서 토큰 사용량 합산
+- `app/src/transcript_reader.rs` — transcript JSONL에서 토큰 사용량 합산
 
 테스트:
 - 정상 transcript 파싱
@@ -139,7 +139,7 @@ seogi analyze <project> <session_id> [--transcript <path>] [--start-sha <sha>]
 ### Step 3: git 데이터 수집 구현
 
 구현:
-- `cli/src/git_stats.rs` — start_sha 기반 커밋 수, 라인 변경 수 계산
+- `app/src/git_stats.rs` — start_sha 기반 커밋 수, 라인 변경 수 계산
 
 테스트:
 - 커밋 있는 경우
