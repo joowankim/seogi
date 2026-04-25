@@ -90,3 +90,14 @@ pub fn unassign(conn: &Connection, cycle_id: &str, task_id: &str) -> Result<()> 
     println!("Unassigned task {task_id} from cycle {cycle_id}");
     Ok(())
 }
+
+/// `seogi cycle report` 핸들러.
+///
+/// # Errors
+///
+/// cycle 미존재, DB 에러 시 `anyhow::Error`.
+pub fn report(conn: &Connection, cycle_id: &str) -> Result<()> {
+    let output = workflow::cycle_report::run(conn, cycle_id)?;
+    print!("{output}");
+    Ok(())
+}

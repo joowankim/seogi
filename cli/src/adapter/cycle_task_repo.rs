@@ -53,6 +53,27 @@ pub fn is_assigned_to_cycle(
     Ok(count > 0)
 }
 
+/// 특정 Cycle에 배정된 (`task_id`, `assigned`) 목록을 조회한다.
+///
+/// # Errors
+///
+/// SELECT 실패 시 `rusqlite::Error`.
+pub fn list_by_cycle(
+    conn: &Connection,
+    cycle_id: &str,
+) -> rusqlite::Result<Vec<(String, Assigned)>> {
+    let mut stmt = conn.prepare("SELECT task_id, assigned FROM cycle_tasks WHERE cycle_id = ?1")?;
+    let rows = stmt.query_map([cycle_id], |row| {
+        let task_id: String = row.get(0)?;
+        let assigned_str: String = row.get(1)?;
+        let assigned = assigned_str.parse::<Assigned>().map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Text, Box::new(e))
+        })?;
+        Ok((task_id, assigned))
+    })?;
+    rows.collect()
+}
+
 /// 태스크가 어떤 Cycle에든 배정되어 있는지 확인한다.
 ///
 /// # Errors

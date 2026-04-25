@@ -158,7 +158,7 @@ fn tools_list_returns_all_registered_tools() {
 
     let response = session.list_tools();
     let tools = response["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 18);
+    assert_eq!(tools.len(), 19);
 
     session.shutdown();
 }
@@ -240,6 +240,9 @@ fn tools_list_schema_has_correct_required_fields() {
             "cycle_assign" | "cycle_unassign" => {
                 assert!(required_strs.contains(&"cycle_id"));
                 assert!(required_strs.contains(&"task_id"));
+            }
+            "cycle_report" => {
+                assert!(required_strs.contains(&"cycle_id"));
             }
             _ => panic!("unexpected tool: {name}"),
         }

@@ -123,6 +123,11 @@ struct CycleAssignParams {
     task_id: String,
 }
 
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct CycleReportParams {
+    cycle_id: String,
+}
+
 // ── Tool implementations ──
 
 fn success_text(text: String) -> CallToolResult {
@@ -567,6 +572,26 @@ impl SeogiMcpServer {
                     "Unassigned task {} from cycle {}",
                     params.task_id, params.cycle_id
                 )),
+                Err(e) => error_text(format!("{e}")),
+            }
+        })
+        .await
+        .expect("spawn_blocking panicked")
+    }
+
+    #[tool(
+        name = "cycle_report",
+        description = "Generate a cycle report with task metrics grouped by planned/unplanned"
+    )]
+    async fn cycle_report(
+        &self,
+        Parameters(params): Parameters<CycleReportParams>,
+    ) -> CallToolResult {
+        let conn = Arc::clone(&self.conn);
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().expect("db lock poisoned");
+            match workflow::cycle_report::run(&conn, &params.cycle_id) {
+                Ok(output) => success_text(output),
                 Err(e) => error_text(format!("{e}")),
             }
         })
