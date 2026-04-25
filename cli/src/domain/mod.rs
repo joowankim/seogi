@@ -1,4 +1,5 @@
 pub mod cycle;
+pub mod cycle_report;
 pub mod dependency;
 pub mod error;
 pub mod log;

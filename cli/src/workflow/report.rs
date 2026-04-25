@@ -163,7 +163,7 @@ pub fn run(
 }
 
 /// Started~Completed 시간 범위(밀리초)를 반환한다.
-fn started_completed_range(
+pub(crate) fn started_completed_range(
     events: &[crate::domain::task::TaskEvent],
     status_map: &[(String, StatusCategory)],
 ) -> Option<(i64, i64)> {
@@ -173,7 +173,7 @@ fn started_completed_range(
 }
 
 /// Started~Completed 시간 범위에서 프록시 지표를 계산한다.
-fn compute_proxy(
+pub(crate) fn compute_proxy(
     conn: &Connection,
     events: &[crate::domain::task::TaskEvent],
     status_map: &[(String, StatusCategory)],
@@ -189,7 +189,7 @@ fn compute_proxy(
 
 /// Started~Completed 범위의 `tool_uses`에서 고유 `session_id`+`project_path`를 추출하고
 /// transcript에서 token usage를 합산한다.
-fn compute_tokens(
+pub(crate) fn compute_tokens(
     conn: &Connection,
     events: &[crate::domain::task::TaskEvent],
     status_map: &[(String, StatusCategory)],

@@ -258,6 +258,11 @@ enum CycleAction {
         /// 태스크 ID
         task_id: String,
     },
+    /// 사이클 리포트 출력
+    Report {
+        /// 사이클 ID
+        cycle_id: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -357,6 +362,9 @@ fn main() -> Result<()> {
                 }
                 CycleAction::Unassign { cycle_id, task_id } => {
                     seogi::entrypoint::cycle::unassign(&conn, &cycle_id, &task_id)?;
+                }
+                CycleAction::Report { cycle_id } => {
+                    seogi::entrypoint::cycle::report(&conn, &cycle_id)?;
                 }
             }
         }
