@@ -5,4 +5,4 @@
 .serena/
 
 # Rust build artifacts
-cli/target/
+app/target/

@@ -14,7 +14,7 @@ mkdir -p "$SEOGI_DIR"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if command -v cargo &>/dev/null; then
   echo "Installing seogi CLI via cargo..."
-  cargo install --path "$SCRIPT_DIR/cli" --quiet
+  cargo install --path "$SCRIPT_DIR/app" --quiet
 else
   echo "Error: cargo not found. Install Rust toolchain first."
   exit 1

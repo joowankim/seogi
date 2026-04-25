@@ -49,7 +49,7 @@ description: seogi 프로젝트의 TDD 구현 워크플로우. 기획 승인 완
 
 ## 1. E2E 테스트 선작성 (RED)
 
-- 위치: `cli/tests/feature_XX_test.rs`
+- 위치: `app/tests/feature_XX_test.rs`
 - 모든 QA 항목에 대응
 - 격리: `tempfile::tempdir()` + 임시 SQLite 파일
 - 모든 테스트 실패 상태에서 시작

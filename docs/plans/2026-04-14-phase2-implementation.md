@@ -29,7 +29,7 @@ seogi/
 ├── lib/                      # bash (변경 없음)
 ├── analyzers/
 │   └── session-summary.sh    # Phase 2 완료 후 삭제
-├── cli/                      # Rust 프로젝트
+├── app/                      # Rust 프로젝트
 │   ├── Cargo.toml
 │   └── src/
 │       ├── main.rs           # CLI 진입점 (clap)
@@ -232,7 +232,7 @@ cargo-husky = { version = "1", default-features = false, features = ["prepush-ho
 ### Step 7: install.sh 업데이트 + 배포
 
 구현:
-- install.sh: `cli/target/release/seogi`를 `~/.seogi/bin/seogi`에 복사
+- install.sh: `app/target/release/seogi`를 `~/.seogi/bin/seogi`에 복사
 - stop.sh: 바이너리 호출로 변경
 - `analyzers/session-summary.sh` 삭제
 
@@ -257,7 +257,7 @@ cargo-husky = { version = "1", default-features = false, features = ["prepush-ho
 
 ### 논의 1: 빌드와 배포 방식 — 결정됨
 
-install.sh가 `cli/target/release/seogi` 바이너리를 `~/.seogi/bin/seogi`에 복사한다.
+install.sh가 `app/target/release/seogi` 바이너리를 `~/.seogi/bin/seogi`에 복사한다.
 빌드는 개발 시 `cargo build --release`로 수동 수행.
 uninstall.sh는 기존과 동일하게 `~/.seogi/` 전체 삭제 — 바이너리도 함께 삭제됨.
 
